@@ -1,0 +1,7 @@
+{
+  "name": "ProTrack RMA Platform",
+  "description": "A comprehensive Return Merchandise Authorization (RMA) management system for electronics manufacturing, featuring AI-powered defect analysis and streamlined document submission.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
