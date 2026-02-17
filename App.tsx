@@ -1,27 +1,51 @@
-
 import React, { useState, useEffect } from 'react';
 import { RMARequest, RMAStatus } from './types';
 import RMAForm from './components/RMAForm';
 import Login from './components/Login';
 import ExcelJS from 'exceljs';
+import { supabase, getProfile, UserProfile, isSupabaseConfigured } from './services/supabase';
 
 const App: React.FC = () => {
   const [requests, setRequests] = useState<RMARequest[]>([]);
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [user, setUser] = useState<any>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [activeView, setActiveView] = useState<'dashboard' | 'all' | 'new' | 'reports'>('dashboard');
   const [editingRequest, setEditingRequest] = useState<RMARequest | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Check authentication
-    const auth = localStorage.getItem('rma_auth_token');
-    if (auth === 'true') {
-      setIsAuthenticated(true);
-    }
-    setIsLoading(false);
+    // Only attempt Supabase connection if configured
+    if (isSupabaseConfigured && supabase) {
+      // Check active session on mount
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session?.user) {
+          setUser(session.user);
+          loadUserProfile(session.user.id);
+        }
+        setIsLoading(false);
+      }).catch(err => {
+        console.error("Supabase session error:", err);
+        setIsLoading(false);
+      });
 
-    // Load data
+      // Listen for auth changes
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+        if (session?.user) {
+          setUser(session.user);
+          loadUserProfile(session.user.id);
+        } else {
+          setUser(null);
+          setProfile(null);
+        }
+      });
+
+      return () => subscription.unsubscribe();
+    } else {
+      setIsLoading(false);
+    }
+
+    // Load local RMA data
     const saved = localStorage.getItem('rma_requests_v4');
     if (saved) {
       setRequests(JSON.parse(saved));
@@ -29,21 +53,18 @@ const App: React.FC = () => {
       const dummy: RMARequest[] = [
         { id: 'RMA-001', date: '08/01/2023', createdAt: new Date().toISOString(), status: RMAStatus.PENDING, customerCountry: 'ALGERIA', customer: 'Bomare Company', source: 'Market', size: '65"', odf: 'IDL2507002', bom: 'BOM-EX-001', brand: 'VisionPlus', modelPN: 'Intel G2 Pro', defectDescription: 'Vertical Line', ver: 'V2.2', wc: '24/03', ocSerialNumber: 'SE-803130306', remark: 'Initial factory assessment.', images: { defectSymptom: null, factoryBatch: null, ocSerial: null } },
         { id: 'RMA-002', date: '08/01/2023', createdAt: new Date().toISOString(), status: RMAStatus.APPROVED, customerCountry: 'ALGERIA', customer: 'Bomare Company', source: 'Market', size: '55"', odf: 'IDL2507003', bom: 'BOM-EX-002', brand: 'VisionPlus', modelPN: 'Intel GS', defectDescription: 'Horizontal Line', ver: 'V2.1', wc: '24/04', ocSerialNumber: 'SE-803120306', remark: 'Approved for replacement.', images: { defectSymptom: null, factoryBatch: null, ocSerial: null } },
-        { id: 'RMA-003', date: '08/01/2023', createdAt: new Date().toISOString(), status: RMAStatus.APPROVED, customerCountry: 'ALGERIA', customer: 'Bomare Company', source: 'Market', size: '43"', odf: 'IDL2507004', bom: 'BOM-EX-003', brand: 'VisionPlus', modelPN: 'Intel GSB Pro', defectDescription: 'Bright Dot', ver: 'V1.0', wc: '24/05', ocSerialNumber: 'SE-801130305', remark: 'Standard warranty.', images: { defectSymptom: null, factoryBatch: null, ocSerial: null } },
-        { id: 'RMA-004', date: '06/01/2023', createdAt: new Date().toISOString(), status: RMAStatus.REJECTED, customerCountry: 'ALGERIA', customer: 'Bomare Company', source: 'Market', size: '32"', odf: 'IDL2507005', bom: 'BOM-EX-004', brand: 'VisionPlus', modelPN: 'Intel 3 Pro', defectDescription: 'No Display', ver: 'V3.0', wc: '23/50', ocSerialNumber: 'SE-801170306', remark: 'External damage found.', images: { defectSymptom: null, factoryBatch: null, ocSerial: null } },
       ];
       setRequests(dummy);
     }
   }, []);
 
-  const handleLogin = (email: string) => {
-    localStorage.setItem('rma_auth_token', 'true');
-    setIsAuthenticated(true);
+  const loadUserProfile = async (userId: string) => {
+    const p = await getProfile(userId);
+    setProfile(p);
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('rma_auth_token');
-    setIsAuthenticated(false);
+  const handleLogout = async () => {
+    if (supabase) await supabase.auth.signOut();
   };
 
   const handleSaveRequest = (data: Partial<RMARequest>) => {
@@ -101,11 +122,7 @@ const App: React.FC = () => {
     headerRow.height = 40;
     headerRow.eachCell((cell, colNumber) => {
       const h = headers[colNumber - 1];
-      cell.fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: h.color }
-      };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: h.color } };
       cell.font = { bold: true, size: 9, name: 'Arial Narrow', color: { argb: h.textWhite ? 'FFFFFF' : '000000' } };
       cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
       cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
@@ -117,15 +134,8 @@ const App: React.FC = () => {
         const matches = base64Data.match(/^data:image\/([A-Za-z-+/]+);base64,(.+)$/);
         if (!matches) return;
         const extension = matches[1].replace('jpeg', 'jpg');
-        const imageId = workbook.addImage({
-          base64: matches[2],
-          extension: (extension === 'jpg' ? 'jpeg' : extension) as any,
-        });
-        worksheet.addImage(imageId, {
-          tl: { col: colIndex - 1, row: rowIndex - 0.9 } as any,
-          br: { col: colIndex, row: rowIndex - 0.1 } as any,
-          editAs: 'oneCell'
-        });
+        const imageId = workbook.addImage({ base64: matches[2], extension: (extension === 'jpg' ? 'jpeg' : extension) as any });
+        worksheet.addImage(imageId, { tl: { col: colIndex - 1, row: rowIndex - 0.9 } as any, br: { col: colIndex, row: rowIndex - 0.1 } as any, editAs: 'oneCell' });
       } catch (e) { console.error("Image embed failed", e); }
     };
 
@@ -175,8 +185,8 @@ const App: React.FC = () => {
     );
   }
 
-  if (!isAuthenticated) {
-    return <Login onLogin={handleLogin} />;
+  if (!user) {
+    return <Login onLogin={(u) => setUser(u)} />;
   }
 
   const filteredRequests = requests.filter(r => 
@@ -241,8 +251,10 @@ const App: React.FC = () => {
           </div>
           <div className="flex items-center space-x-6">
             <div className="flex items-center space-x-3 pl-4 border-l border-blue-800">
-              <div className="w-8 h-8 rounded-full bg-slate-300 overflow-hidden shadow-sm"><img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Admin" alt="Admin" /></div>
-              <span className="text-sm font-bold tracking-wide uppercase">Administrator</span>
+              <div className="w-8 h-8 rounded-full bg-slate-300 overflow-hidden shadow-sm">
+                <img src={profile?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.email || 'Guest'}`} alt="Avatar" />
+              </div>
+              <span className="text-sm font-bold tracking-wide uppercase">{profile?.full_name || 'Administrator'}</span>
             </div>
           </div>
         </header>
@@ -255,19 +267,18 @@ const App: React.FC = () => {
               
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {[
-                  { label: 'Total RMAs', value: '1,645', trend: '↑ 1,245', color: 'blue' },
-                  { label: 'Pending Approval', value: '34', trend: '↑ 3', color: 'amber' },
-                  { label: 'In Progress', value: '82', trend: '0 overview', color: 'slate' },
-                  { label: 'Completed This Month', value: '138', trend: '127 as month', color: 'emerald' },
+                  { label: 'Total RMAs', value: requests.length, trend: '↑', color: 'blue' },
+                  { label: 'Pending Approval', value: requests.filter(r => r.status === RMAStatus.PENDING).length, trend: '!', color: 'amber' },
+                  { label: 'In Progress', value: requests.filter(r => r.status === RMAStatus.PROCESSING).length, trend: '~', color: 'slate' },
+                  { label: 'Completed', value: requests.filter(r => r.status === RMAStatus.APPROVED).length, trend: '✓', color: 'emerald' },
                 ].map((stat, i) => (
                   <div key={i} className="bg-white p-6 rounded-xl border border-slate-200 flex justify-between items-center shadow-sm">
                     <div>
                       <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{stat.label}</p>
                       <h3 className="text-3xl font-bold mt-1">{stat.value}</h3>
-                      <p className={`text-[10px] mt-1 font-medium ${stat.trend.includes('↑') ? 'text-emerald-600' : 'text-slate-400'}`}>Trend {stat.trend}</p>
                     </div>
-                    <div className="w-12 h-12 rounded-full flex items-center justify-center bg-slate-50 text-slate-400">
-                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
+                    <div className="w-12 h-12 rounded-full flex items-center justify-center bg-slate-50 text-slate-400 font-black text-xl">
+                      {stat.trend}
                     </div>
                   </div>
                 ))}
@@ -286,58 +297,29 @@ const App: React.FC = () => {
                           <th className="px-6 py-3 text-left">RMA ID</th>
                           <th className="px-6 py-3 text-left">Date</th>
                           <th className="px-6 py-3 text-left">Model</th>
-                          <th className="px-6 py-3 text-left">Serial No.</th>
                           <th className="px-6 py-3 text-left">Status</th>
                           <th className="px-6 py-3 text-center">Actions</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {requests.slice(0, 8).map((req) => (
+                        {requests.slice(0, 5).map((req) => (
                           <tr key={req.id} className="hover:bg-slate-50 transition-colors">
                             <td className="px-6 py-4 font-semibold text-slate-700">{req.id}</td>
                             <td className="px-6 py-4 text-slate-500">{req.date}</td>
                             <td className="px-6 py-4 text-slate-600">{req.modelPN}</td>
-                            <td className="px-6 py-4 text-slate-500 font-mono text-xs">{req.ocSerialNumber}</td>
                             <td className="px-6 py-4">
                               <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase ${statusColors[req.status]}`}>
                                 {req.status}
                               </span>
                             </td>
-                            <td className="px-6 py-4 text-center space-x-2">
-                              <button onClick={() => handleEdit(req)} className="p-1 hover:bg-white rounded border border-transparent hover:border-slate-200 text-slate-400 hover:text-blue-600 transition-all"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg></button>
+                            <td className="px-6 py-4 text-center">
+                              <button onClick={() => handleEdit(req)} className="text-blue-600 hover:text-blue-800 font-bold transition-all">Edit</button>
                             </td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
-                </div>
-
-                <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm h-fit">
-                    <h4 className="font-bold text-slate-900 mb-6 uppercase tracking-wider text-xs">Analytics Summary</h4>
-                    <div className="space-y-6">
-                      <div>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Weekly RMA Volume</p>
-                        <div className="h-24 w-full flex items-end space-x-1">
-                          {[40, 60, 45, 90, 50, 40, 95].map((h, i) => (
-                            <div key={i} className="flex-1 bg-blue-50 rounded-t-sm relative group">
-                              <div className="absolute bottom-0 w-full bg-blue-600 rounded-t-sm transition-all" style={{ height: `${h}%` }}></div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                      <div className="pt-6 border-t border-slate-100">
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Top Defect Types</p>
-                        <div className="flex items-center space-x-4">
-                          <div className="w-16 h-16 rounded-full border-4 border-blue-600 border-t-emerald-400 border-r-rose-400"></div>
-                          <div className="flex-1 space-y-1">
-                            <div className="flex items-center text-[10px] font-black text-slate-600 uppercase"><div className="w-1.5 h-1.5 bg-blue-600 rounded-full mr-2"></div> Panel Defect</div>
-                            <div className="flex items-center text-[10px] font-black text-slate-600 uppercase"><div className="w-1.5 h-1.5 bg-emerald-400 rounded-full mr-2"></div> Electronics</div>
-                            <div className="flex items-center text-[10px] font-black text-slate-600 uppercase"><div className="w-1.5 h-1.5 bg-rose-400 rounded-full mr-2"></div> Damage</div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
                 </div>
               </div>
             </div>
@@ -351,11 +333,7 @@ const App: React.FC = () => {
                 </button>
                 <h2 className="text-2xl font-bold text-slate-900 uppercase tracking-tight">{editingRequest ? `Modify Request ${editingRequest.id}` : 'File New RMA Case'}</h2>
               </div>
-              <RMAForm 
-                onSubmit={handleSaveRequest} 
-                onCancel={() => setActiveView('dashboard')} 
-                initialData={editingRequest || undefined}
-              />
+              <RMAForm onSubmit={handleSaveRequest} onCancel={() => setActiveView('dashboard')} initialData={editingRequest || undefined} />
             </div>
           )}
 
@@ -364,11 +342,7 @@ const App: React.FC = () => {
               <div className="flex items-center justify-between">
                 <h2 className="text-2xl font-bold text-slate-900 uppercase tracking-tight">Active Repositories</h2>
                 <div className="flex space-x-3">
-                  <button 
-                    onClick={handleExportExcel}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-xs font-black flex items-center space-x-2 transition-all shadow-lg shadow-emerald-100 uppercase tracking-widest"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                  <button onClick={handleExportExcel} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-xs font-black flex items-center space-x-2 transition-all shadow-lg shadow-emerald-100 uppercase tracking-widest">
                     <span>Export Canvas</span>
                   </button>
                   <button onClick={() => setActiveView('new')} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-xs font-black transition-all shadow-lg shadow-blue-100 uppercase tracking-widest">+ Create Entry</button>
@@ -384,9 +358,7 @@ const App: React.FC = () => {
                         <th className="px-4 py-4 border-r border-slate-200 text-left">Country</th>
                         <th className="px-4 py-4 border-r border-slate-200 text-left">Customer</th>
                         <th className="px-4 py-4 border-r border-slate-200 text-left">Model P/N</th>
-                        <th className="px-4 py-4 border-r border-slate-200 text-left">Serial No</th>
                         <th className="px-4 py-4 border-r border-slate-200 text-left">Defect</th>
-                        <th className="px-4 py-4 border-r border-slate-200 text-center">Images</th>
                         <th className="px-4 py-4 border-r border-slate-200 text-center">Status</th>
                         <th className="px-4 py-4 text-center">Action</th>
                       </tr>
@@ -398,15 +370,7 @@ const App: React.FC = () => {
                           <td className="px-4 py-4 border-r border-slate-200 text-slate-500 font-medium">{r.customerCountry}</td>
                           <td className="px-4 py-4 border-r border-slate-200 font-bold text-slate-700">{r.customer}</td>
                           <td className="px-4 py-4 border-r border-slate-200 font-black text-slate-800">{r.modelPN}</td>
-                          <td className="px-4 py-4 border-r border-slate-200 font-mono text-[10px] text-slate-400">{r.ocSerialNumber}</td>
                           <td className="px-4 py-4 border-r border-slate-200 font-bold text-slate-600">{r.defectDescription}</td>
-                          <td className="px-4 py-4 border-r border-slate-200 text-center">
-                            <div className="flex justify-center -space-x-1.5">
-                              {r.images.defectSymptom && <div className="w-5 h-5 rounded-full border-2 border-white bg-slate-100 overflow-hidden shadow-sm"><img src={r.images.defectSymptom} className="object-cover w-full h-full" alt="1" /></div>}
-                              {r.images.factoryBatch && <div className="w-5 h-5 rounded-full border-2 border-white bg-slate-100 overflow-hidden shadow-sm"><img src={r.images.factoryBatch} className="object-cover w-full h-full" alt="2" /></div>}
-                              {r.images.ocSerial && <div className="w-5 h-5 rounded-full border-2 border-white bg-slate-100 overflow-hidden shadow-sm"><img src={r.images.ocSerial} className="object-cover w-full h-full" alt="3" /></div>}
-                            </div>
-                          </td>
                           <td className="px-4 py-4 border-r border-slate-200 text-center">
                             <span className={`px-2 py-0.5 rounded-full text-[9px] font-black border uppercase tracking-tighter ${statusColors[r.status]}`}>{r.status}</span>
                           </td>
