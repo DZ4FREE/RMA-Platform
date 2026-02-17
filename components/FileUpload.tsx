@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useRef } from 'react';
 
 interface FileUploadProps {
   label: string;
@@ -10,6 +10,8 @@ interface FileUploadProps {
 }
 
 const FileUpload: React.FC<FileUploadProps> = ({ label, id, onFileChange, onDelete, previewUrl }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+
   const compressImage = (dataUrl: string): Promise<string> => {
     return new Promise((resolve) => {
       const img = new Image();
@@ -46,17 +48,34 @@ const FileUpload: React.FC<FileUploadProps> = ({ label, id, onFileChange, onDele
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
+    processFile(file);
+    e.target.value = '';
+  };
+
+  const processFile = (file: File | undefined) => {
+    if (file && file.type.startsWith('image/')) {
       const reader = new FileReader();
       reader.onloadend = async () => {
         const originalDataUrl = reader.result as string;
-        // Compress before passing up to state
         const compressedDataUrl = await compressImage(originalDataUrl);
         onFileChange(id, file, compressedDataUrl);
       };
       reader.readAsDataURL(file);
     }
-    e.target.value = '';
+  };
+
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (items) {
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+          const blob = items[i].getAsFile();
+          if (blob) {
+            processFile(blob);
+          }
+        }
+      }
+    }
   };
 
   const handleDelete = (e: React.MouseEvent) => {
@@ -68,7 +87,12 @@ const FileUpload: React.FC<FileUploadProps> = ({ label, id, onFileChange, onDele
   return (
     <div className="flex flex-col space-y-2 p-3 bg-white border border-gray-200 rounded-lg hover:border-blue-400 transition-colors">
       <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{label}</label>
-      <div className="relative group cursor-pointer border-2 border-dashed border-gray-300 rounded-md p-4 flex flex-col items-center justify-center min-h-[140px] hover:bg-blue-50">
+      <div 
+        ref={containerRef}
+        onPaste={handlePaste}
+        tabIndex={0}
+        className="relative group cursor-pointer border-2 border-dashed border-gray-300 rounded-md p-4 flex flex-col items-center justify-center min-h-[140px] hover:bg-blue-50 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-200 transition-all"
+      >
         {previewUrl ? (
           <div className="w-full h-full relative flex flex-col items-center justify-center">
             <button
@@ -82,14 +106,15 @@ const FileUpload: React.FC<FileUploadProps> = ({ label, id, onFileChange, onDele
               </svg>
             </button>
             <img src={previewUrl} alt={label} className="w-full h-24 object-contain rounded" />
-            <p className="mt-2 text-[10px] text-gray-400 text-center truncate w-full font-medium">Click to change</p>
+            <p className="mt-2 text-[10px] text-gray-400 text-center truncate w-full font-medium">Click to change or Paste (Ctrl+V)</p>
           </div>
         ) : (
           <div className="flex flex-col items-center">
             <svg className="w-8 h-8 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
             </svg>
-            <span className="text-xs text-gray-500 font-medium">Choose file</span>
+            <span className="text-xs text-gray-400 font-medium">Choose file or Paste</span>
+            <span className="text-[9px] text-gray-300 uppercase mt-1">Ctrl+V Supported</span>
           </div>
         )}
         <input

@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 
 const PREDEFINED_DEFECTS = [
@@ -66,7 +67,14 @@ export async function detectDefectCategory(base64Image: string) {
   }
 }
 
-export async function extractSerialNumberFromImage(base64Image: string) {
+export interface OCDetails {
+  ocSerialNumber: string;
+  wc: string;
+  modelPN: string;
+  ver: string;
+}
+
+export async function extractOCDetailsFromImage(base64Image: string): Promise<OCDetails> {
   try {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
@@ -77,19 +85,41 @@ export async function extractSerialNumberFromImage(base64Image: string) {
       },
     };
 
-    const textPart = {
-      text: "Look at this label image. Find the primary Serial Number, typically associated with the main barcode (e.g., strings like '80879768B...' or 'CEN430250...'). Return ONLY the alphanumeric serial number string. Do not include labels like 'S/N' or 'Serial'. If not found, return an empty string."
-    };
-
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: { parts: [imagePart, textPart] },
+      contents: {
+        parts: [
+          imagePart,
+          {
+            text: `Look at this panel label image and extract the following 4 specific values:
+            1. The primary OC Serial Number. This is typically a long alphanumeric string near a barcode or QR code (e.g., 'TA5144...', '1500258...', '0MF2L9...').
+            2. The W/C (Week/Cycle), usually a 4-digit code (e.g., '2505').
+            3. The Model P/N (Panel Part No). Examples: 'ST3151A07-2', 'CV500U5-L04', 'V430DJ2-Q01'.
+            4. The Ver. (Version or Revision). Examples: 'Ver.2.9', 'Rev: 02', 'P2'.
+            Return ONLY a valid JSON object with keys: ocSerialNumber, wc, modelPN, ver.`
+          }
+        ]
+      },
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            ocSerialNumber: { type: Type.STRING, description: "The extracted OC Serial Number" },
+            wc: { type: Type.STRING, description: "The extracted Week/Cycle code" },
+            modelPN: { type: Type.STRING, description: "The extracted Model P/N" },
+            ver: { type: Type.STRING, description: "The extracted Version/Revision code" }
+          },
+          required: ["ocSerialNumber", "wc", "modelPN", "ver"]
+        }
+      }
     });
 
-    return response.text?.trim() || "";
+    const result = JSON.parse(response.text || '{}');
+    return result as OCDetails;
   } catch (error) {
-    console.error("Error calling Gemini API for serial number extraction:", error);
-    throw error;
+    console.error("Error calling Gemini API for OC detail extraction:", error);
+    return { ocSerialNumber: "", wc: "", modelPN: "", ver: "" };
   }
 }
 
@@ -110,10 +140,11 @@ export async function extractDetailsFromFactoryLabel(base64Image: string) {
         parts: [
           imagePart,
           {
-            text: `Look at this label image:
-            1. Find the ODF Number or Batch Number. It is usually annotated/highlighted with a light blue box (e.g., 'IDL2507002' or 'TS2501-271').
-            2. Identify the Screen Size. Look for model codes like 'CX430...', 'LVU430...', 'M8-43...'. The digits '43' typically indicate a 43-inch size. Common sizes are 32, 40, 43, 50, 55, 65, 75, 85.
-            Return the results as a JSON object with 'odf' and 'size' keys.`
+            text: `Look at this factory label image:
+            1. Find the ODF Number or P/O Number. It is usually a string like 'TS2501-291' or 'IDL2507002'.
+            2. Identify the Screen Size. Look for model codes like 'CX320...', 'LVU430...'. The digits after the prefix (like '32' in 'CX320') indicate the size.
+            3. Find the Expressluck BOM. It is a specific alphanumeric string, often located at the bottom of the label, e.g., '2300132VA1Z01510'.
+            Return the results as a JSON object with 'odf', 'size', and 'bom' keys.`
           }
         ]
       },
@@ -122,18 +153,19 @@ export async function extractDetailsFromFactoryLabel(base64Image: string) {
         responseSchema: {
           type: Type.OBJECT,
           properties: {
-            odf: { type: Type.STRING, description: "The extracted ODF/Batch Number" },
-            size: { type: Type.STRING, description: "The extracted screen size (e.g., '43\"')" }
+            odf: { type: Type.STRING, description: "The extracted ODF/P/O Number" },
+            size: { type: Type.STRING, description: "The extracted screen size (e.g., '32\"')" },
+            bom: { type: Type.STRING, description: "The extracted Expressluck BOM string" }
           },
-          required: ["odf", "size"]
+          required: ["odf", "size", "bom"]
         }
       }
     });
 
     const result = JSON.parse(response.text || '{}');
-    return result as { odf: string; size: string };
+    return result as { odf: string; size: string; bom: string };
   } catch (error) {
     console.error("Error calling Gemini API for factory label extraction:", error);
-    throw { odf: "", size: "" };
+    return { odf: "", size: "", bom: "" };
   }
 }

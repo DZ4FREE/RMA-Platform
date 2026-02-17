@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { RMAStatus, RMARequest } from '../types';
 import FileUpload from './FileUpload';
-import { analyzeDefect, extractSerialNumberFromImage, extractDetailsFromFactoryLabel, detectDefectCategory } from '../services/geminiService';
+import { analyzeDefect, extractOCDetailsFromImage, extractDetailsFromFactoryLabel, detectDefectCategory } from '../services/geminiService';
 
 const DEFECT_OPTIONS = [
   "Vertical Line", "Horizontal Line", "Vertical Bar", "Horizontal Bar", 
@@ -35,7 +35,7 @@ const RMAForm: React.FC<RMAFormProps> = ({ onSubmit, onCancel, initialData }) =>
 
   const [images, setImages] = useState<Record<string, string>>({});
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [isScanningSN, setIsScanningSN] = useState(false);
+  const [isScanningOC, setIsScanningOC] = useState(false);
   const [isScanningFactoryLabel, setIsScanningFactoryLabel] = useState(false);
   const [isDetectingDefect, setIsDetectingDefect] = useState(false);
 
@@ -83,22 +83,28 @@ const RMAForm: React.FC<RMAFormProps> = ({ onSubmit, onCancel, initialData }) =>
       }
     }
 
-    // Automatically scan Serial Number if the O/C Serial image is uploaded
+    // Comprehensive scan for OC Label (SN, WC, Model, Version)
     if (id === 'ocSerial') {
-      setIsScanningSN(true);
+      setIsScanningOC(true);
       try {
-        const extractedSN = await extractSerialNumberFromImage(dataUrl);
-        if (extractedSN) {
-          setFormData(prev => ({ ...prev, ocSerialNumber: extractedSN }));
+        const details = await extractOCDetailsFromImage(dataUrl);
+        if (details) {
+          setFormData(prev => ({ 
+            ...prev, 
+            ocSerialNumber: details.ocSerialNumber || prev.ocSerialNumber,
+            wc: details.wc || prev.wc,
+            modelPN: details.modelPN || prev.modelPN,
+            ver: details.ver || prev.ver
+          }));
         }
       } catch (err) {
-        console.error("Failed to auto-scan serial number:", err);
+        console.error("Failed to auto-scan OC details:", err);
       } finally {
-        setIsScanningSN(false);
+        setIsScanningOC(false);
       }
     }
 
-    // Automatically scan ODF and Size if the Factory Batch image is uploaded
+    // Automatically scan ODF, Size, and BOM if the Factory Batch image is uploaded
     if (id === 'factoryBatch') {
       setIsScanningFactoryLabel(true);
       try {
@@ -107,7 +113,8 @@ const RMAForm: React.FC<RMAFormProps> = ({ onSubmit, onCancel, initialData }) =>
           setFormData(prev => ({ 
             ...prev, 
             odf: details.odf || prev.odf,
-            size: details.size || prev.size
+            size: details.size || prev.size,
+            bom: details.bom || prev.bom
           }));
         }
       } catch (err) {
@@ -138,7 +145,6 @@ const RMAForm: React.FC<RMAFormProps> = ({ onSubmit, onCancel, initialData }) =>
     setIsAnalyzing(true);
     try {
       const suggestion = await analyzeDefect(images.defectSymptom, formData.defectDescription);
-      // We append the professional description to the selected category if user wants
       setFormData(prev => ({ ...prev, remark: (prev.remark ? prev.remark + "\n" : "") + "AI Analysis: " + suggestion }));
       alert("Professional AI analysis added to Remarks section.");
     } catch (err) {
@@ -262,7 +268,7 @@ const RMAForm: React.FC<RMAFormProps> = ({ onSubmit, onCancel, initialData }) =>
               {isScanningFactoryLabel && (
                 <div className="absolute right-3 top-2 flex items-center">
                   <svg className="animate-spin h-4 w-4 text-blue-600" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <circle className="opacity-25" cx="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
                 </div>
@@ -271,7 +277,23 @@ const RMAForm: React.FC<RMAFormProps> = ({ onSubmit, onCancel, initialData }) =>
           </div>
           <div>
             <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Expressluck BOM</label>
-            <input name="bom" value={formData.bom} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-amber-500 outline-none text-sm" />
+            <div className="relative">
+              <input 
+                name="bom" 
+                value={formData.bom} 
+                onChange={handleChange} 
+                className={`w-full px-3 py-2 border ${isScanningFactoryLabel ? 'border-blue-400 bg-blue-50' : 'border-gray-300'} rounded-md focus:ring-2 focus:ring-amber-500 outline-none text-sm font-mono`} 
+                placeholder={isScanningFactoryLabel ? "Identifying BOM..." : "EXPRESSLUCK BOM"} 
+              />
+              {isScanningFactoryLabel && (
+                <div className="absolute right-3 top-2 flex items-center">
+                  <svg className="animate-spin h-4 w-4 text-blue-600" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Identification */}
@@ -281,15 +303,44 @@ const RMAForm: React.FC<RMAFormProps> = ({ onSubmit, onCancel, initialData }) =>
           </div>
           <div className="md:col-span-2">
             <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Model P/N (Panel Part No)</label>
-            <input required name="modelPN" value={formData.modelPN} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-amber-500 outline-none text-sm" />
+            <div className="relative">
+              <input 
+                required 
+                name="modelPN" 
+                value={formData.modelPN} 
+                onChange={handleChange} 
+                className={`w-full px-3 py-2 border ${isScanningOC ? 'border-orange-400 bg-orange-50' : 'border-gray-300'} rounded-md focus:ring-2 focus:ring-amber-500 outline-none text-sm font-semibold transition-colors`} 
+                placeholder={isScanningOC ? "Analyzing label..." : "Panel Model"} 
+              />
+              {isScanningOC && (
+                <div className="absolute right-3 top-2 flex items-center">
+                  <svg className="animate-spin h-4 w-4 text-orange-600" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                </div>
+              )}
+            </div>
           </div>
           <div>
             <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Ver.</label>
-            <input name="ver" value={formData.ver} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-amber-500 outline-none text-sm" />
+            <input 
+              name="ver" 
+              value={formData.ver} 
+              onChange={handleChange} 
+              className={`w-full px-3 py-2 border ${isScanningOC ? 'border-red-400 bg-red-50' : 'border-gray-300'} rounded-md focus:ring-2 focus:ring-amber-500 outline-none text-sm font-bold transition-colors`} 
+              placeholder={isScanningOC ? "..." : "Version"} 
+            />
           </div>
           <div>
             <label className="block text-xs font-bold text-gray-500 uppercase mb-1">W/C (Week/Cycle)</label>
-            <input name="wc" value={formData.wc} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-amber-500 outline-none text-sm" />
+            <input 
+              name="wc" 
+              value={formData.wc} 
+              onChange={handleChange} 
+              className={`w-full px-3 py-2 border ${isScanningOC ? 'border-emerald-400 bg-emerald-50' : 'border-gray-300'} rounded-md focus:ring-2 focus:ring-amber-500 outline-none text-sm font-bold transition-colors`} 
+              placeholder={isScanningOC ? "..." : "2505"} 
+            />
           </div>
           <div className="md:col-span-2 relative">
             <label className="block text-xs font-bold text-gray-500 uppercase mb-1">OC Serial Number</label>
@@ -299,13 +350,13 @@ const RMAForm: React.FC<RMAFormProps> = ({ onSubmit, onCancel, initialData }) =>
                 name="ocSerialNumber" 
                 value={formData.ocSerialNumber} 
                 onChange={handleChange} 
-                className={`w-full px-3 py-2 border ${isScanningSN ? 'border-blue-400 bg-blue-50' : 'border-gray-300'} rounded-md focus:ring-2 focus:ring-amber-500 outline-none text-sm font-mono transition-colors`}
-                placeholder={isScanningSN ? "Scanning Label..." : "Enter or auto-scan S/N"}
+                className={`w-full px-3 py-2 border ${isScanningOC ? 'border-purple-400 bg-purple-50' : 'border-gray-300'} rounded-md focus:ring-2 focus:ring-amber-500 outline-none text-sm font-mono transition-colors`}
+                placeholder={isScanningOC ? "Scanning Label..." : "Enter or auto-scan S/N"}
               />
-              {isScanningSN && (
+              {isScanningOC && (
                 <div className="absolute right-3 top-2 flex items-center">
-                   <svg className="animate-spin h-4 w-4 text-blue-600" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                   <svg className="animate-spin h-4 w-4 text-purple-600" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
                 </div>
