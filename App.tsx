@@ -13,7 +13,7 @@ const App: React.FC = () => {
   const [editingRequest, setEditingRequest] = useState<RMARequest | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
-  const [hasApiKey, setHasApiKey] = useState<boolean>(true);
+  const [hasApiKey, setHasApiKey] = useState<boolean>(false);
 
   useEffect(() => {
     checkApiKey();
@@ -57,14 +57,15 @@ const App: React.FC = () => {
   }, []);
 
   const checkApiKey = async () => {
-    // If the key is in process.env (Netlify), we are good.
+    // Priority 1: Netlify environment variable
     const envKey = process.env.API_KEY;
     if (envKey && envKey.length > 5) {
       setHasApiKey(true);
+      console.log("Gemini Engine: Initialized via Environment Variable");
       return;
     }
 
-    // Fallback to AI Studio Bridge if available
+    // Priority 2: AI Studio local selection
     if (window.aistudio) {
       try {
         const selected = await window.aistudio.hasSelectedApiKey();
@@ -229,41 +230,44 @@ const App: React.FC = () => {
         <div className="p-6 flex-1">
           <div className="flex items-center space-x-2 text-blue-700 mb-8">
             <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>
-            <span className="font-bold text-lg tracking-tight">RMA Portal</span>
+            <span className="font-bold text-lg tracking-tight tracking-widest uppercase text-blue-900">ProTrack</span>
           </div>
           
           <nav className="space-y-1 mb-8">
-            <button onClick={() => setActiveView('dashboard')} className={`w-full flex items-center space-x-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${activeView === 'dashboard' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-100'}`}>
+            <button onClick={() => setActiveView('dashboard')} className={`w-full flex items-center space-x-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${activeView === 'dashboard' ? 'bg-blue-50 text-blue-700 shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}>
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
               <span>Dashboard</span>
             </button>
-            <button onClick={() => setActiveView('all')} className={`w-full flex items-center space-x-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${activeView === 'all' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-100'}`}>
+            <button onClick={() => setActiveView('all')} className={`w-full flex items-center space-x-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${activeView === 'all' ? 'bg-blue-50 text-blue-700 shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}>
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
-              <span>All RMAs</span>
+              <span>RMA Repository</span>
             </button>
-            <button onClick={() => { setEditingRequest(null); setActiveView('new'); }} className={`w-full flex items-center space-x-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${activeView === 'new' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-100'}`}>
+            <button onClick={() => { setEditingRequest(null); setActiveView('new'); }} className={`w-full flex items-center space-x-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${activeView === 'new' ? 'bg-blue-50 text-blue-700 shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}>
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" /></svg>
               <span>New Request</span>
             </button>
           </nav>
 
-          {!hasApiKey && !process.env.API_KEY && (
-            <div className="mt-4 p-4 bg-amber-50 rounded-xl border border-amber-200 animate-pulse">
-              <p className="text-[10px] font-black text-amber-600 uppercase mb-2">Gemini Setup Required</p>
-              <p className="text-[11px] text-amber-800 leading-tight mb-4">Please add your API key to Netlify or connect via the button below.</p>
+          {!hasApiKey && (
+            <div className="mt-4 p-4 bg-amber-50 rounded-xl border border-amber-200 animate-fadeIn">
+              <p className="text-[10px] font-black text-amber-600 uppercase mb-2">Gemini Engine Locked</p>
+              <p className="text-[11px] text-amber-800 leading-tight mb-4">No API Key detected. AI scanning and analysis features are currently disabled.</p>
               <button 
                 onClick={handleSelectKey}
                 className="w-full py-2.5 bg-blue-600 text-white text-[10px] font-black rounded-lg hover:bg-blue-700 uppercase tracking-widest transition-all shadow-md active:scale-95"
               >
-                Connect API Key
+                Activate AI Engine
               </button>
             </div>
           )}
           
-          {(hasApiKey || (process.env.API_KEY && process.env.API_KEY.length > 5)) && (
-            <div className="mt-8 p-3 bg-emerald-50 rounded-xl border border-emerald-200 flex items-center space-x-2">
-              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-              <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-tight">AI Engine Ready</span>
+          {hasApiKey && (
+            <div className="mt-4 p-3 bg-emerald-50 rounded-xl border border-emerald-200 flex items-center space-x-2 animate-fadeIn">
+              <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse ring-4 ring-emerald-100"></div>
+              <div className="flex flex-col">
+                <span className="text-[10px] font-black text-emerald-700 uppercase tracking-tight">AI Status: Active</span>
+                <span className="text-[8px] text-emerald-600 font-bold uppercase opacity-70">Gemini 3 Flash Ready</span>
+              </div>
             </div>
           )}
         </div>
@@ -289,18 +293,21 @@ const App: React.FC = () => {
             </span>
             <input 
               type="text" 
-              placeholder="Search RMAs..." 
-              className="w-full bg-blue-800 border-none rounded-md py-2 pl-10 pr-4 text-sm text-white placeholder-blue-300 focus:ring-2 focus:ring-blue-400 outline-none transition-all"
+              placeholder="Filter by Serial, Model or RMA ID..." 
+              className="w-full bg-blue-800/50 border border-blue-400/20 rounded-lg py-2 pl-10 pr-4 text-sm text-white placeholder-blue-300 focus:ring-2 focus:ring-blue-400 outline-none transition-all"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
           <div className="flex items-center space-x-6">
             <div className="flex items-center space-x-3 pl-4 border-l border-blue-800">
-              <div className="w-8 h-8 rounded-full bg-slate-300 overflow-hidden shadow-sm border border-blue-400">
+              <div className="w-8 h-8 rounded-full bg-slate-300 overflow-hidden shadow-sm border border-blue-400 ring-2 ring-blue-500/20">
                 <img src={profile?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.email || 'Guest'}`} alt="Avatar" />
               </div>
-              <span className="text-sm font-bold tracking-wide uppercase">{profile?.full_name || user?.email?.split('@')[0] || 'Administrator'}</span>
+              <div className="flex flex-col">
+                <span className="text-[10px] font-black text-blue-200 uppercase tracking-[0.1em] opacity-80">Administrator</span>
+                <span className="text-xs font-bold tracking-wide">{profile?.full_name || user?.email?.split('@')[0] || 'User'}</span>
+              </div>
             </div>
           </div>
         </header>
@@ -308,67 +315,101 @@ const App: React.FC = () => {
         {/* Content Area */}
         <main className="flex-1 overflow-y-auto p-8">
           {activeView === 'dashboard' && (
-            <div className="max-w-7xl mx-auto space-y-6">
-              <h2 className="text-2xl font-bold text-slate-900">Dashboard Overview</h2>
+            <div className="max-w-7xl mx-auto space-y-8">
+              <div className="flex items-end justify-between">
+                <div>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Overview</p>
+                  <h2 className="text-3xl font-black text-slate-900 tracking-tight">RMA Analytics</h2>
+                </div>
+                <div className="flex space-x-2">
+                  <span className="px-3 py-1 bg-white border border-slate-200 rounded-full text-[10px] font-bold text-slate-500">Last updated: Just now</span>
+                </div>
+              </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {[
-                  { label: 'Total RMAs', value: requests.length, trend: '↑', color: 'blue' },
-                  { label: 'Pending Approval', value: requests.filter(r => r.status === RMAStatus.PENDING).length, trend: '!', color: 'amber' },
-                  { label: 'In Progress', value: requests.filter(r => r.status === RMAStatus.PROCESSING).length, trend: '~', color: 'slate' },
-                  { label: 'Completed', value: requests.filter(r => r.status === RMAStatus.APPROVED).length, trend: '✓', color: 'emerald' },
+                  { label: 'Total Cases', value: requests.length, trend: '↑ 4%', color: 'blue' },
+                  { label: 'Awaiting Action', value: requests.filter(r => r.status === RMAStatus.PENDING).length, trend: '!', color: 'amber' },
+                  { label: 'Active Process', value: requests.filter(r => r.status === RMAStatus.PROCESSING).length, trend: '...', color: 'slate' },
+                  { label: 'Validated', value: requests.filter(r => r.status === RMAStatus.APPROVED).length, trend: '✓ 92%', color: 'emerald' },
                 ].map((stat, i) => (
-                  <div key={i} className="bg-white p-6 rounded-xl border border-slate-200 flex justify-between items-center shadow-sm">
+                  <div key={i} className="bg-white p-6 rounded-2xl border border-slate-200 flex justify-between items-start shadow-sm hover:shadow-md transition-shadow group">
                     <div>
-                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{stat.label}</p>
-                      <h3 className="text-3xl font-bold mt-1">{stat.value}</h3>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{stat.label}</p>
+                      <h3 className="text-4xl font-black mt-2 text-slate-800">{stat.value}</h3>
+                      <span className="text-[10px] font-bold text-slate-400 mt-2 block group-hover:text-slate-600 transition-colors">Trends monitored daily</span>
                     </div>
-                    <div className="w-12 h-12 rounded-full flex items-center justify-center bg-slate-50 text-slate-400 font-black text-xl">
+                    <div className={`px-2 py-1 rounded-md bg-slate-50 text-[10px] font-black text-slate-400 border border-slate-100`}>
                       {stat.trend}
                     </div>
                   </div>
                 ))}
               </div>
 
-              <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
-                <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-                  <h4 className="font-bold text-slate-900 uppercase tracking-wider text-xs">Recent Submissions</h4>
-                  <button onClick={() => setActiveView('all')} className="text-xs font-bold text-blue-600 hover:text-blue-700">View Comprehensive List</button>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+                  <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/30">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-2 h-6 bg-blue-600 rounded-full"></div>
+                      <h4 className="font-black text-slate-800 uppercase tracking-widest text-[11px]">Recent Activity Stream</h4>
+                    </div>
+                    <button onClick={() => setActiveView('all')} className="text-[10px] font-black text-blue-600 hover:text-blue-800 uppercase tracking-widest">Full History &rarr;</button>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-slate-50/50 text-slate-400 text-[10px] font-black uppercase tracking-widest border-b border-slate-100">
+                          <th className="px-6 py-4 text-left">Case ID</th>
+                          <th className="px-6 py-4 text-left">Customer</th>
+                          <th className="px-6 py-4 text-left">Panel Serial</th>
+                          <th className="px-6 py-4 text-left">Status</th>
+                          <th className="px-6 py-4 text-center">Operation</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {requests.slice(0, 8).map((req) => (
+                          <tr key={req.id} className="hover:bg-blue-50/30 transition-colors group">
+                            <td className="px-6 py-4">
+                              <span className="font-black text-slate-800">{req.id}</span>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="flex flex-col">
+                                <span className="font-bold text-slate-700">{req.customer}</span>
+                                <span className="text-[10px] text-slate-400 font-bold uppercase">{req.customerCountry}</span>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 text-[11px] font-mono font-bold text-slate-500">{req.ocSerialNumber}</td>
+                            <td className="px-6 py-4">
+                              <span className={`px-2 py-0.5 rounded-full text-[9px] font-black border uppercase tracking-tighter ${statusColors[req.status]}`}>
+                                {req.status}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 text-center">
+                              <button onClick={() => handleEdit(req)} className="text-[10px] font-black text-blue-600 hover:text-white hover:bg-blue-600 px-3 py-1 rounded-lg border border-blue-600/20 transition-all uppercase tracking-widest">Inspect</button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="bg-slate-50 text-slate-500 font-medium border-b border-slate-100">
-                        <th className="px-6 py-3 text-left">RMA ID</th>
-                        <th className="px-6 py-3 text-left">Date</th>
-                        <th className="px-6 py-3 text-left">Model</th>
-                        <th className="px-6 py-3 text-left">Status</th>
-                        <th className="px-6 py-3 text-center">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {requests.slice(0, 5).map((req) => (
-                        <tr key={req.id} className="hover:bg-slate-50 transition-colors">
-                          <td className="px-6 py-4 font-semibold text-slate-700">{req.id}</td>
-                          <td className="px-6 py-4 text-slate-500">{req.date}</td>
-                          <td className="px-6 py-4 text-slate-600">{req.modelPN}</td>
-                          <td className="px-6 py-4">
-                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase ${statusColors[req.status]}`}>
-                              {req.status}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 text-center">
-                            <button onClick={() => handleEdit(req)} className="text-blue-600 hover:text-blue-800 font-bold transition-all">Edit Case</button>
-                          </td>
-                        </tr>
-                      ))}
-                      {requests.length === 0 && (
-                        <tr>
-                          <td colSpan={5} className="px-6 py-12 text-center text-slate-400 font-medium">No RMA records found. Click "New Request" to begin.</td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
+
+                <div className="bg-blue-600 rounded-2xl p-8 text-white shadow-xl shadow-blue-200 relative overflow-hidden flex flex-col justify-between">
+                   <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-3xl"></div>
+                   <div>
+                      <h4 className="text-xl font-black mb-4">Quick Actions</h4>
+                      <p className="text-blue-100 text-sm mb-8 leading-relaxed">Instantly generate new quality assurance records or extract batch reports for auditing.</p>
+                      <div className="space-y-3">
+                        <button onClick={() => { setEditingRequest(null); setActiveView('new'); }} className="w-full bg-white text-blue-700 py-3 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg hover:scale-[1.02] active:scale-95 transition-all">Start New Entry</button>
+                        <button onClick={handleExportExcel} className="w-full bg-blue-500 text-white py-3 rounded-xl font-black text-xs uppercase tracking-widest border border-blue-400/50 hover:bg-blue-400 transition-all">Bulk Export (XLSX)</button>
+                      </div>
+                   </div>
+                   <div className="mt-8 pt-8 border-t border-blue-400/50">
+                      <div className="flex items-center space-x-2 text-[10px] font-black uppercase opacity-70">
+                         <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                         <span>System Health: Optimal</span>
+                      </div>
+                   </div>
                 </div>
               </div>
             </div>
@@ -380,7 +421,10 @@ const App: React.FC = () => {
                 <button onClick={() => setActiveView('dashboard')} className="p-2 hover:bg-white rounded-lg transition-colors border border-transparent hover:border-slate-200">
                   <svg className="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
                 </button>
-                <h2 className="text-2xl font-bold text-slate-900 uppercase tracking-tight">{editingRequest ? `Edit Case ${editingRequest.id}` : 'Create New RMA Entry'}</h2>
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Quality Assurance</span>
+                  <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight leading-none">{editingRequest ? `Modify Entry ${editingRequest.id}` : 'Create Technical Record'}</h2>
+                </div>
               </div>
               <RMAForm onSubmit={handleSaveRequest} onCancel={() => setActiveView('dashboard')} initialData={editingRequest || undefined} />
             </div>
@@ -388,50 +432,68 @@ const App: React.FC = () => {
 
           {activeView === 'all' && (
             <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <h2 className="text-2xl font-bold text-slate-900 uppercase tracking-tight">RMA Repository</h2>
+              <div className="flex items-end justify-between">
+                <div>
+                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Database</p>
+                   <h2 className="text-3xl font-black text-slate-900 tracking-tight">Technical Repository</h2>
+                </div>
                 <div className="flex space-x-3">
-                  <button onClick={handleExportExcel} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-xs font-black flex items-center space-x-2 transition-all shadow-lg shadow-emerald-100 uppercase tracking-widest">
+                  <button onClick={handleExportExcel} className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-3 rounded-xl text-[10px] font-black flex items-center space-x-2 transition-all shadow-lg shadow-emerald-100 uppercase tracking-widest">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                    <span>Export Excel</span>
+                    <span>Excel Export</span>
                   </button>
-                  <button onClick={() => setActiveView('new')} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-xs font-black transition-all shadow-lg shadow-blue-100 uppercase tracking-widest">+ Create Entry</button>
+                  <button onClick={() => setActiveView('new')} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl text-[10px] font-black transition-all shadow-lg shadow-blue-100 uppercase tracking-widest">+ New Entry</button>
                 </div>
               </div>
               
-              <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xl shadow-slate-100">
+              <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-xl shadow-slate-100">
                 <div className="overflow-x-auto spreadsheet-scroll">
-                  <table className="min-w-full border-collapse text-xs">
+                  <table className="min-w-full border-collapse">
                     <thead>
-                      <tr className="bg-slate-50 text-slate-500 uppercase font-black tracking-widest border-b border-slate-200">
-                        <th className="px-4 py-4 border-r border-slate-200 text-center">NO</th>
-                        <th className="px-4 py-4 border-r border-slate-200 text-left">Country</th>
-                        <th className="px-4 py-4 border-r border-slate-200 text-left">Customer</th>
-                        <th className="px-4 py-4 border-r border-slate-200 text-left">Model P/N</th>
-                        <th className="px-4 py-4 border-r border-slate-200 text-left">Defect</th>
-                        <th className="px-4 py-4 border-r border-slate-200 text-center">Status</th>
-                        <th className="px-4 py-4 text-center">Action</th>
+                      <tr className="bg-slate-50 text-slate-500 uppercase font-black tracking-widest border-b border-slate-200 text-[10px]">
+                        <th className="px-6 py-5 border-r border-slate-200 text-center w-16">#</th>
+                        <th className="px-6 py-5 border-r border-slate-200 text-left">Entity</th>
+                        <th className="px-6 py-5 border-r border-slate-200 text-left">Panel Spec</th>
+                        <th className="px-6 py-5 border-r border-slate-200 text-left">Defect Type</th>
+                        <th className="px-6 py-5 border-r border-slate-200 text-left">OC Serial</th>
+                        <th className="px-6 py-5 border-r border-slate-200 text-center">Status</th>
+                        <th className="px-6 py-5 text-center">Action</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {filteredRequests.map((r) => (
-                        <tr key={r.id} className="hover:bg-slate-50/50 transition-colors">
-                          <td className="px-4 py-4 border-r border-slate-200 text-center font-black text-blue-600">{r.id}</td>
-                          <td className="px-4 py-4 border-r border-slate-200 text-slate-500 font-medium">{r.customerCountry}</td>
-                          <td className="px-4 py-4 border-r border-slate-200 font-bold text-slate-700">{r.customer}</td>
-                          <td className="px-4 py-4 border-r border-slate-200 font-black text-slate-800">{r.modelPN}</td>
-                          <td className="px-4 py-4 border-r border-slate-200 font-bold text-slate-600">{r.defectDescription}</td>
-                          <td className="px-4 py-4 border-r border-slate-200 text-center">
-                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-black border uppercase tracking-tighter ${statusColors[r.status]}`}>{r.status}</span>
+                        <tr key={r.id} className="hover:bg-blue-50/40 transition-colors group">
+                          <td className="px-6 py-5 border-r border-slate-200 text-center font-black text-blue-600">{r.id}</td>
+                          <td className="px-6 py-5 border-r border-slate-200">
+                            <div className="flex flex-col">
+                               <span className="font-bold text-slate-800 text-sm">{r.customer}</span>
+                               <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tight">{r.customerCountry}</span>
+                            </div>
                           </td>
-                          <td className="px-4 py-4 text-center">
-                            <button onClick={() => handleEdit(r)} className="text-blue-600 font-black hover:text-blue-800 transition-colors uppercase text-[10px]">Review</button>
+                          <td className="px-6 py-5 border-r border-slate-200">
+                             <div className="flex flex-col">
+                               <span className="font-black text-slate-700 text-xs">{r.modelPN}</span>
+                               <span className="text-[10px] text-slate-400 font-bold uppercase">{r.size} • {r.odf}</span>
+                             </div>
+                          </td>
+                          <td className="px-6 py-5 border-r border-slate-200 font-bold text-slate-600 text-xs uppercase tracking-tight">{r.defectDescription}</td>
+                          <td className="px-6 py-5 border-r border-slate-200 font-mono text-[11px] font-bold text-slate-500">{r.ocSerialNumber}</td>
+                          <td className="px-6 py-5 border-r border-slate-200 text-center">
+                            <span className={`px-2.5 py-1 rounded-full text-[9px] font-black border uppercase tracking-tighter ${statusColors[r.status]}`}>{r.status}</span>
+                          </td>
+                          <td className="px-6 py-5 text-center">
+                            <button onClick={() => handleEdit(r)} className="text-[10px] font-black text-blue-600 hover:text-blue-800 transition-colors uppercase tracking-widest border border-blue-100 px-3 py-1 rounded-lg bg-blue-50/50">Edit</button>
                           </td>
                         </tr>
                       ))}
                       {filteredRequests.length === 0 && (
                         <tr>
-                          <td colSpan={7} className="px-6 py-12 text-center text-slate-400 font-medium">No records matching your search.</td>
+                          <td colSpan={7} className="px-6 py-24 text-center">
+                             <div className="flex flex-col items-center opacity-40">
+                                <svg className="w-16 h-16 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                <span className="text-sm font-black uppercase tracking-widest">No matching records found</span>
+                             </div>
+                          </td>
                         </tr>
                       )}
                     </tbody>

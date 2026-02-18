@@ -29,6 +29,15 @@
       align-items: center;
       justify-content: center;
     }
+    
+    .scanning-pulse {
+      animation: pulse-blue 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+
+    @keyframes pulse-blue {
+      0%, 100% { opacity: 1; border-color: rgb(59 130 246); }
+      50% { opacity: .7; border-color: rgb(191 219 254); }
+    }
   </style>
 
   <script type="importmap">

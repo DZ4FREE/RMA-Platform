@@ -22,27 +22,29 @@ function safeJsonParse(text: string | undefined) {
 const getClient = () => {
   const apiKey = process.env.API_KEY;
   if (!apiKey) {
-    throw new Error("Gemini API Key is missing. Please set API_KEY in your environment or use the 'Connect API' button.");
+    throw new Error("Gemini API Engine: Authentication Key Missing. Please set API_KEY in environment.");
   }
   return new GoogleGenAI({ apiKey });
 };
+
+const DEFAULT_MODEL = 'gemini-3-flash-preview';
 
 export async function analyzeDefect(base64Image: string, prompt: string) {
   try {
     const ai = getClient();
     const imagePart = { inlineData: { mimeType: 'image/jpeg', data: base64Image.split(',')[1] } };
     const textPart = {
-      text: `Analyze this defective electronic panel image and provide a professional technical description for an RMA. 
-             Focus on patterns like vertical/horizontal lines, spot defects, or physical cracks.
+      text: `Analyze this defective electronic panel image and provide a professional technical description for an RMA record. 
+             Focus on identifying specific visual artifacts: vertical/horizontal line clusters, spot clusters, or structural impact.
              User context: ${prompt}`
     };
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: DEFAULT_MODEL,
       contents: { parts: [imagePart, textPart] },
     });
 
-    return response.text || "No description generated.";
+    return response.text || "No technical description generated.";
   } catch (error: any) {
     console.error("Gemini Analysis Error:", error);
     throw error;
@@ -54,11 +56,11 @@ export async function detectDefectCategory(base64Image: string) {
     const ai = getClient();
     const imagePart = { inlineData: { mimeType: 'image/jpeg', data: base64Image.split(',')[1] } };
     const textPart = {
-      text: `Identify the primary defect category in this screen. Options: Vertical Line, Horizontal Line, Vertical Bar, Horizontal Bar, Black Dot, Bright Dot, No Display, Abnormal Display. Return ONLY the category name.`
+      text: `Analyze this electronic screen defect. Output EXACTLY one of these categories: Vertical Line, Horizontal Line, Vertical Bar, Horizontal Bar, Black Dot, Bright Dot, No Display, Abnormal Display. Output only the category name.`
     };
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: DEFAULT_MODEL,
       contents: { parts: [imagePart, textPart] },
     });
 
@@ -80,18 +82,18 @@ export async function extractOCDetailsFromImage(base64Image: string): Promise<OC
     const ai = getClient();
     const imagePart = { inlineData: { mimeType: 'image/jpeg', data: base64Image.split(',')[1] } };
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: DEFAULT_MODEL,
       contents: {
         parts: [
           imagePart,
           {
-            text: `Extract details from this PANEL/OC label. 
-            Search for QR codes or BARCODES specifically for the serial number.
-            1. OC Serial Number: typically 10-20 alphanumeric characters.
-            2. W/C: a 4-digit week/code (e.g., 2415).
-            3. Model P/N: The panel model number.
-            4. Ver: Version/Revision string.
-            Return valid JSON.`
+            text: `Extract technical specifications from this panel/OC label. 
+            Prioritize scanning QR codes or Barcodes for the Serial Number.
+            - ocSerialNumber: Typically 10-18 chars alphanumeric.
+            - wc: 4-digit week code (e.g. 2415).
+            - modelPN: Full model number or part number.
+            - ver: Revision/Version (e.g. V1.1).
+            Return as JSON.`
           }
         ]
       },
@@ -104,14 +106,15 @@ export async function extractOCDetailsFromImage(base64Image: string): Promise<OC
             wc: { type: Type.STRING },
             modelPN: { type: Type.STRING },
             ver: { type: Type.STRING }
-          }
+          },
+          required: ["ocSerialNumber"]
         }
       }
     });
 
     return safeJsonParse(response.text) as OCDetails;
   } catch (error: any) {
-    console.error("OC Extraction failed", error);
+    console.error("OC OCR Extraction failed", error);
     throw error;
   }
 }
@@ -121,16 +124,16 @@ export async function extractDetailsFromFactoryLabel(base64Image: string) {
     const ai = getClient();
     const imagePart = { inlineData: { mimeType: 'image/jpeg', data: base64Image.split(',')[1] } };
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: DEFAULT_MODEL,
       contents: {
         parts: [
           imagePart,
           {
-            text: `Extract data from this Factory Batch Label:
-            1. ODF/PO Number: alphanumeric code (e.g., IDL2507002).
-            2. Size: Screen size in inches (e.g., 65").
-            3. Expressluck BOM: Long sequence of numbers.
-            Return valid JSON.`
+            text: `Parse this Factory Batch/ODF label:
+            - odf: ODF/PO alphanumeric number.
+            - size: Diagonal screen size (e.g. 32", 65").
+            - bom: Full Expressluck BOM string.
+            Return as JSON.`
           }
         ]
       },
@@ -149,7 +152,7 @@ export async function extractDetailsFromFactoryLabel(base64Image: string) {
 
     return safeJsonParse(response.text) as { odf: string; size: string; bom: string };
   } catch (error: any) {
-    console.error("Factory Extraction failed", error);
+    console.error("Factory Label OCR failed", error);
     throw error;
   }
 }
