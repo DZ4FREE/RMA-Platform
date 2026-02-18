@@ -4,7 +4,7 @@ import { GoogleGenAI, Type } from "@google/genai";
 function safeJsonParse(text: string | undefined) {
   if (!text) return {};
   try {
-    // Remove markdown code blocks if they exist
+    // Remove markdown code blocks if they exist (Gemini sometimes adds them even in JSON mode)
     const cleanText = text.replace(/```json/g, '').replace(/```/g, '').trim();
     return JSON.parse(cleanText);
   } catch (e) {
@@ -13,16 +13,17 @@ function safeJsonParse(text: string | undefined) {
   }
 }
 
-const checkApiKey = () => {
-  if (!process.env.API_KEY) {
-    throw new Error("Gemini API Key is missing. Please set API_KEY in your environment variables.");
+const getAIClient = () => {
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) {
+    throw new Error("Gemini API Key is missing. Please add 'API_KEY' to your Netlify Environment Variables.");
   }
+  return new GoogleGenAI({ apiKey });
 };
 
 export async function analyzeDefect(base64Image: string, prompt: string) {
   try {
-    checkApiKey();
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = getAIClient();
     const imagePart = { inlineData: { mimeType: 'image/jpeg', data: base64Image.split(',')[1] } };
     const textPart = {
       text: `Analyze this defective electronic panel image and provide a professional technical description for an RMA. 
@@ -44,8 +45,7 @@ export async function analyzeDefect(base64Image: string, prompt: string) {
 
 export async function detectDefectCategory(base64Image: string) {
   try {
-    checkApiKey();
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = getAIClient();
     const imagePart = { inlineData: { mimeType: 'image/jpeg', data: base64Image.split(',')[1] } };
     const textPart = {
       text: `Identify the primary defect category in this screen. Options: Vertical Line, Horizontal Line, Vertical Bar, Horizontal Bar, Black Dot, Bright Dot, No Display, Abnormal Display. Return ONLY the category name.`
@@ -71,8 +71,7 @@ export interface OCDetails {
 
 export async function extractOCDetailsFromImage(base64Image: string): Promise<OCDetails> {
   try {
-    checkApiKey();
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = getAIClient();
     const imagePart = { inlineData: { mimeType: 'image/jpeg', data: base64Image.split(',')[1] } };
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
@@ -105,16 +104,15 @@ export async function extractOCDetailsFromImage(base64Image: string): Promise<OC
     });
 
     return safeJsonParse(response.text) as OCDetails;
-  } catch (error) {
+  } catch (error: any) {
     console.error("OC Extraction failed", error);
-    throw error;
+    throw new Error(error.message || "Extraction failed");
   }
 }
 
 export async function extractDetailsFromFactoryLabel(base64Image: string) {
   try {
-    checkApiKey();
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = getAIClient();
     const imagePart = { inlineData: { mimeType: 'image/jpeg', data: base64Image.split(',')[1] } };
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
@@ -144,8 +142,8 @@ export async function extractDetailsFromFactoryLabel(base64Image: string) {
     });
 
     return safeJsonParse(response.text) as { odf: string; size: string; bom: string };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Factory Extraction failed", error);
-    throw error;
+    throw new Error(error.message || "Extraction failed");
   }
 }

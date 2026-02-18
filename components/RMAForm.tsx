@@ -75,7 +75,7 @@ const RMAForm: React.FC<RMAFormProps> = ({ onSubmit, onCancel, initialData }) =>
         const category = await detectDefectCategory(dataUrl);
         setFormData(prev => ({ ...prev, defectDescription: category }));
       } catch (err: any) {
-        console.error("Defect Detection Error:", err);
+        console.warn("Defect identification skipped:", err.message);
       } finally {
         setIsDetectingDefect(false);
         setScanStatus('');
@@ -96,7 +96,7 @@ const RMAForm: React.FC<RMAFormProps> = ({ onSubmit, onCancel, initialData }) =>
         }));
       } catch (err: any) {
         console.error("OC Scan Error:", err);
-        alert(`OC Scan failed: ${err.message || "Please check your API key and connection."}`);
+        alert(`OC Scan failed: ${err.message}`);
       } finally {
         setIsScanningOC(false);
         setScanStatus('');
@@ -116,7 +116,7 @@ const RMAForm: React.FC<RMAFormProps> = ({ onSubmit, onCancel, initialData }) =>
         }));
       } catch (err: any) {
         console.error("Factory Scan Error:", err);
-        alert(`Factory Label scan failed: ${err.message || "Please check your API key and connection."}`);
+        alert(`Factory Label scan failed: ${err.message}`);
       } finally {
         setIsScanningFactoryLabel(false);
         setScanStatus('');
@@ -143,7 +143,7 @@ const RMAForm: React.FC<RMAFormProps> = ({ onSubmit, onCancel, initialData }) =>
       const suggestion = await analyzeDefect(images.defectSymptom, formData.defectDescription);
       setFormData(prev => ({ ...prev, remark: (prev.remark ? prev.remark + "\n" : "") + "AI Analysis: " + suggestion }));
     } catch (err: any) {
-      alert(`AI analysis failed: ${err.message || "Unknown error"}`);
+      alert(`AI analysis failed: ${err.message}`);
     } finally {
       setIsAnalyzing(false);
     }
@@ -171,21 +171,20 @@ const RMAForm: React.FC<RMAFormProps> = ({ onSubmit, onCancel, initialData }) =>
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
           </svg>
           <div className="flex flex-col">
-            <span className="font-black text-[10px] uppercase tracking-tighter opacity-70">AI Processing</span>
+            <span className="font-black text-[10px] uppercase tracking-tighter opacity-70">AI Engine active</span>
             <span className="font-black text-xs uppercase tracking-widest">{scanStatus}</span>
           </div>
         </div>
       )}
 
-      {/* Visual Documentation Section */}
       <div className="bg-white rounded-xl shadow-sm border-t-4 border-t-blue-500 border border-gray-200 overflow-hidden">
         <div className="bg-blue-50 px-6 py-4 flex items-center justify-between border-b border-gray-200">
           <h2 className="text-lg font-bold text-blue-900 flex items-center uppercase tracking-wider">
             <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /></svg>
-            Smart Visual Capture
+            Visual Documentation
           </h2>
           <div className="flex space-x-2">
-            <span className="text-[10px] font-bold text-blue-600 bg-blue-100 px-2 py-0.5 rounded border border-blue-200">AI AUTO-SCAN READY</span>
+            <span className="text-[10px] font-bold text-blue-600 bg-blue-100 px-2 py-0.5 rounded border border-blue-200">PRO-AI SCANNER</span>
           </div>
         </div>
         
@@ -196,12 +195,11 @@ const RMAForm: React.FC<RMAFormProps> = ({ onSubmit, onCancel, initialData }) =>
         </div>
       </div>
 
-      {/* Main Form Fields Section */}
       <div className="bg-white rounded-xl shadow-sm border-t-4 border-t-amber-400 border border-gray-200 overflow-hidden">
         <div className="bg-amber-50 px-6 py-4 border-b border-gray-200">
           <h2 className="text-lg font-bold text-amber-900 flex items-center uppercase tracking-wider">
             <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-            Case Metadata (Auto-populated)
+            Case Metadata
           </h2>
         </div>
 
