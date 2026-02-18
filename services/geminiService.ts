@@ -4,7 +4,6 @@ import { GoogleGenAI, Type } from "@google/genai";
 function safeJsonParse(text: string | undefined) {
   if (!text) return {};
   try {
-    // Remove markdown code blocks if they exist (Gemini sometimes adds them even in JSON mode)
     const cleanText = text.replace(/```json/g, '').replace(/```/g, '').trim();
     return JSON.parse(cleanText);
   } catch (e) {
@@ -15,10 +14,9 @@ function safeJsonParse(text: string | undefined) {
 
 const getAIClient = () => {
   const apiKey = process.env.API_KEY;
-  if (!apiKey) {
-    throw new Error("Gemini API Key is missing. Please add 'API_KEY' to your Netlify Environment Variables.");
-  }
-  return new GoogleGenAI({ apiKey });
+  // If API_KEY is missing, we initialize with empty string and rely on the UI 
+  // to handle key selection via window.aistudio if needed.
+  return new GoogleGenAI({ apiKey: apiKey || "" });
 };
 
 export async function analyzeDefect(base64Image: string, prompt: string) {
@@ -37,8 +35,11 @@ export async function analyzeDefect(base64Image: string, prompt: string) {
     });
 
     return response.text || "No description generated.";
-  } catch (error) {
+  } catch (error: any) {
     console.error("Gemini Error:", error);
+    if (error.message?.includes("API key")) {
+      throw new Error("Gemini API Key missing. Please set API_KEY in Netlify Environment Variables.");
+    }
     throw error;
   }
 }
@@ -80,11 +81,11 @@ export async function extractOCDetailsFromImage(base64Image: string): Promise<OC
           imagePart,
           {
             text: `Extract details from this PANEL/OC label. 
-            IMPORTANT: Look for QR codes or BARCODES first. The serial number is usually the string decoded from these or printed immediately above/below them.
-            1. OC Serial Number: typically 10-20 alphanumeric chars (e.g. TA..., 150..., SE...).
-            2. W/C: a 4-digit code (e.g. 2405).
-            3. Model P/N: The specific panel model (e.g. ST3151A07).
-            4. Ver: The version string (e.g. Ver.2.9, Rev:01).
+            SCANNING GUIDELINE: Look for any Barcodes or QR codes. The encoded data in the QR/Barcode is the most accurate OC Serial Number.
+            1. OC Serial Number: typically 10-20 alphanumeric characters.
+            2. W/C: a 4-digit week/code (e.g. 2405).
+            3. Model P/N: The specific panel model number.
+            4. Ver: Version/Revision string.
             Return valid JSON.`
           }
         ]
@@ -106,7 +107,7 @@ export async function extractOCDetailsFromImage(base64Image: string): Promise<OC
     return safeJsonParse(response.text) as OCDetails;
   } catch (error: any) {
     console.error("OC Extraction failed", error);
-    throw new Error(error.message || "Extraction failed");
+    throw new Error(error.message?.includes("API key") ? "API Key Missing" : "OC Label could not be read. Please try a clearer photo.");
   }
 }
 
@@ -120,11 +121,11 @@ export async function extractDetailsFromFactoryLabel(base64Image: string) {
         parts: [
           imagePart,
           {
-            text: `Extract from Factory/Master Label:
-            1. ODF/PO Number (e.g. IDL2507002).
-            2. Screen Size (e.g. 65").
-            3. Expressluck BOM (usually a long number string).
-            Return JSON.`
+            text: `Extract data from this Factory Batch Label:
+            1. ODF/PO Number: alphanumeric code (e.g. IDL2507002).
+            2. Size: Screen size in inches (e.g. 65").
+            3. Expressluck BOM: Long sequence of numbers identifying the assembly.
+            If data is in a QR code, decode the QR code first. Return valid JSON.`
           }
         ]
       },
@@ -144,6 +145,6 @@ export async function extractDetailsFromFactoryLabel(base64Image: string) {
     return safeJsonParse(response.text) as { odf: string; size: string; bom: string };
   } catch (error: any) {
     console.error("Factory Extraction failed", error);
-    throw new Error(error.message || "Extraction failed");
+    throw new Error(error.message?.includes("API key") ? "API Key Missing" : "Factory label unreadable. Please focus and re-capture.");
   }
 }
