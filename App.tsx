@@ -13,11 +13,12 @@ const App: React.FC = () => {
   const [editingRequest, setEditingRequest] = useState<RMARequest | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [hasApiKey, setHasApiKey] = useState<boolean>(true);
 
   useEffect(() => {
-    // Only attempt Supabase connection if configured
+    checkApiKey();
+
     if (isSupabaseConfigured && supabase) {
-      // Check active session on mount
       supabase.auth.getSession().then(({ data: { session } }) => {
         if (session?.user) {
           setUser(session.user);
@@ -29,7 +30,6 @@ const App: React.FC = () => {
         setIsLoading(false);
       });
 
-      // Listen for auth changes
       const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
         if (session?.user) {
           setUser(session.user);
@@ -45,18 +45,43 @@ const App: React.FC = () => {
       setIsLoading(false);
     }
 
-    // Load local RMA data
     const saved = localStorage.getItem('rma_requests_v4');
     if (saved) {
       setRequests(JSON.parse(saved));
     } else {
       const dummy: RMARequest[] = [
         { id: 'RMA-001', date: '08/01/2023', createdAt: new Date().toISOString(), status: RMAStatus.PENDING, customerCountry: 'ALGERIA', customer: 'Bomare Company', source: 'Market', size: '65"', odf: 'IDL2507002', bom: 'BOM-EX-001', brand: 'VisionPlus', modelPN: 'Intel G2 Pro', defectDescription: 'Vertical Line', ver: 'V2.2', wc: '24/03', ocSerialNumber: 'SE-803130306', remark: 'Initial factory assessment.', images: { defectSymptom: null, factoryBatch: null, ocSerial: null } },
-        { id: 'RMA-002', date: '08/01/2023', createdAt: new Date().toISOString(), status: RMAStatus.APPROVED, customerCountry: 'ALGERIA', customer: 'Bomare Company', source: 'Market', size: '55"', odf: 'IDL2507003', bom: 'BOM-EX-002', brand: 'VisionPlus', modelPN: 'Intel GS', defectDescription: 'Horizontal Line', ver: 'V2.1', wc: '24/04', ocSerialNumber: 'SE-803120306', remark: 'Approved for replacement.', images: { defectSymptom: null, factoryBatch: null, ocSerial: null } },
       ];
       setRequests(dummy);
     }
   }, []);
+
+  const checkApiKey = async () => {
+    // Check if key is injected via process.env or window.aistudio
+    const envKey = process.env.API_KEY;
+    if (!envKey || envKey === '') {
+      if (window.aistudio) {
+        try {
+          const selected = await window.aistudio.hasSelectedApiKey();
+          setHasApiKey(selected);
+        } catch (e) {
+          setHasApiKey(false);
+        }
+      } else {
+        setHasApiKey(false);
+      }
+    } else {
+      setHasApiKey(true);
+    }
+  };
+
+  const handleSelectKey = async () => {
+    if (window.aistudio) {
+      await window.aistudio.openSelectKey();
+      // Assume selection success as per race condition handling
+      setHasApiKey(true);
+    }
+  };
 
   const loadUserProfile = async (userId: string) => {
     const p = await getProfile(userId);
@@ -220,6 +245,35 @@ const App: React.FC = () => {
               <span>New Request</span>
             </button>
           </nav>
+
+          {!hasApiKey && (
+            <div className="mt-8 p-4 bg-rose-50 rounded-xl border border-rose-200">
+              <p className="text-[10px] font-black text-rose-600 uppercase mb-2">Gemini API Offline</p>
+              <p className="text-[11px] text-rose-700 mb-3 leading-relaxed">AI Scanning is disabled. Please connect your API key.</p>
+              <button 
+                onClick={handleSelectKey}
+                className="w-full py-2 bg-rose-600 text-white text-[10px] font-black rounded-lg hover:bg-rose-700 uppercase tracking-widest transition-all shadow-md active:scale-95"
+              >
+                Connect API Key
+              </button>
+              <div className="mt-3 pt-3 border-t border-rose-200">
+                <a 
+                  href="https://ai.google.dev/gemini-api/docs/billing" 
+                  target="_blank" 
+                  className="block text-center text-[9px] text-rose-500 hover:underline font-bold"
+                >
+                  Learn about Billing & Keys
+                </a>
+              </div>
+            </div>
+          )}
+          
+          {hasApiKey && !process.env.API_KEY && (
+            <div className="mt-8 p-3 bg-emerald-50 rounded-xl border border-emerald-200 flex items-center space-x-2">
+              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+              <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-tight">AI Studio Connected</span>
+            </div>
+          )}
         </div>
 
         <div className="p-4 border-t border-slate-200">
@@ -251,10 +305,10 @@ const App: React.FC = () => {
           </div>
           <div className="flex items-center space-x-6">
             <div className="flex items-center space-x-3 pl-4 border-l border-blue-800">
-              <div className="w-8 h-8 rounded-full bg-slate-300 overflow-hidden shadow-sm">
+              <div className="w-8 h-8 rounded-full bg-slate-300 overflow-hidden shadow-sm border border-blue-400">
                 <img src={profile?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.email || 'Guest'}`} alt="Avatar" />
               </div>
-              <span className="text-sm font-bold tracking-wide uppercase">{profile?.full_name || 'Administrator'}</span>
+              <span className="text-sm font-bold tracking-wide uppercase">{profile?.full_name || user?.email?.split('@')[0] || 'Administrator'}</span>
             </div>
           </div>
         </header>
@@ -263,7 +317,7 @@ const App: React.FC = () => {
         <main className="flex-1 overflow-y-auto p-8">
           {activeView === 'dashboard' && (
             <div className="max-w-7xl mx-auto space-y-6">
-              <h2 className="text-2xl font-bold text-slate-900">Dashboard</h2>
+              <h2 className="text-2xl font-bold text-slate-900">Dashboard Overview</h2>
               
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {[
@@ -284,42 +338,45 @@ const App: React.FC = () => {
                 ))}
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
-                  <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-                    <h4 className="font-bold text-slate-900 uppercase tracking-wider text-xs">Recent Submissions</h4>
-                    <button onClick={() => setActiveView('all')} className="text-xs font-bold text-blue-600 hover:text-blue-700">View All</button>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="bg-slate-50 text-slate-500 font-medium border-b border-slate-100">
-                          <th className="px-6 py-3 text-left">RMA ID</th>
-                          <th className="px-6 py-3 text-left">Date</th>
-                          <th className="px-6 py-3 text-left">Model</th>
-                          <th className="px-6 py-3 text-left">Status</th>
-                          <th className="px-6 py-3 text-center">Actions</th>
+              <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                  <h4 className="font-bold text-slate-900 uppercase tracking-wider text-xs">Recent Submissions</h4>
+                  <button onClick={() => setActiveView('all')} className="text-xs font-bold text-blue-600 hover:text-blue-700">View Comprehensive List</button>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-slate-50 text-slate-500 font-medium border-b border-slate-100">
+                        <th className="px-6 py-3 text-left">RMA ID</th>
+                        <th className="px-6 py-3 text-left">Date</th>
+                        <th className="px-6 py-3 text-left">Model</th>
+                        <th className="px-6 py-3 text-left">Status</th>
+                        <th className="px-6 py-3 text-center">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {requests.slice(0, 5).map((req) => (
+                        <tr key={req.id} className="hover:bg-slate-50 transition-colors">
+                          <td className="px-6 py-4 font-semibold text-slate-700">{req.id}</td>
+                          <td className="px-6 py-4 text-slate-500">{req.date}</td>
+                          <td className="px-6 py-4 text-slate-600">{req.modelPN}</td>
+                          <td className="px-6 py-4">
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase ${statusColors[req.status]}`}>
+                              {req.status}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-center">
+                            <button onClick={() => handleEdit(req)} className="text-blue-600 hover:text-blue-800 font-bold transition-all">Edit Case</button>
+                          </td>
                         </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {requests.slice(0, 5).map((req) => (
-                          <tr key={req.id} className="hover:bg-slate-50 transition-colors">
-                            <td className="px-6 py-4 font-semibold text-slate-700">{req.id}</td>
-                            <td className="px-6 py-4 text-slate-500">{req.date}</td>
-                            <td className="px-6 py-4 text-slate-600">{req.modelPN}</td>
-                            <td className="px-6 py-4">
-                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase ${statusColors[req.status]}`}>
-                                {req.status}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 text-center">
-                              <button onClick={() => handleEdit(req)} className="text-blue-600 hover:text-blue-800 font-bold transition-all">Edit</button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                      ))}
+                      {requests.length === 0 && (
+                        <tr>
+                          <td colSpan={5} className="px-6 py-12 text-center text-slate-400 font-medium">No RMA records found. Click "New Request" to begin.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             </div>
@@ -331,7 +388,7 @@ const App: React.FC = () => {
                 <button onClick={() => setActiveView('dashboard')} className="p-2 hover:bg-white rounded-lg transition-colors border border-transparent hover:border-slate-200">
                   <svg className="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
                 </button>
-                <h2 className="text-2xl font-bold text-slate-900 uppercase tracking-tight">{editingRequest ? `Modify Request ${editingRequest.id}` : 'File New RMA Case'}</h2>
+                <h2 className="text-2xl font-bold text-slate-900 uppercase tracking-tight">{editingRequest ? `Edit Case ${editingRequest.id}` : 'Create New RMA Entry'}</h2>
               </div>
               <RMAForm onSubmit={handleSaveRequest} onCancel={() => setActiveView('dashboard')} initialData={editingRequest || undefined} />
             </div>
@@ -340,10 +397,11 @@ const App: React.FC = () => {
           {activeView === 'all' && (
             <div className="space-y-6">
               <div className="flex items-center justify-between">
-                <h2 className="text-2xl font-bold text-slate-900 uppercase tracking-tight">Active Repositories</h2>
+                <h2 className="text-2xl font-bold text-slate-900 uppercase tracking-tight">RMA Repository</h2>
                 <div className="flex space-x-3">
                   <button onClick={handleExportExcel} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-xs font-black flex items-center space-x-2 transition-all shadow-lg shadow-emerald-100 uppercase tracking-widest">
-                    <span>Export Canvas</span>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                    <span>Export Excel</span>
                   </button>
                   <button onClick={() => setActiveView('new')} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-xs font-black transition-all shadow-lg shadow-blue-100 uppercase tracking-widest">+ Create Entry</button>
                 </div>
@@ -379,6 +437,11 @@ const App: React.FC = () => {
                           </td>
                         </tr>
                       ))}
+                      {filteredRequests.length === 0 && (
+                        <tr>
+                          <td colSpan={7} className="px-6 py-12 text-center text-slate-400 font-medium">No records matching your search.</td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
