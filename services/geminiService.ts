@@ -1,25 +1,13 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
-
-const PREDEFINED_DEFECTS = [
-  "Vertical Line", "Horizontal Line", "Vertical Bar", "Horizontal Bar",
-  "Black Dot", "Bright Dot", "No Display", "Abnormal Display"
-];
 
 export async function analyzeDefect(base64Image: string, prompt: string) {
   try {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    
-    const imagePart = {
-      inlineData: {
-        mimeType: 'image/jpeg',
-        data: base64Image.split(',')[1],
-      },
-    };
-
+    const imagePart = { inlineData: { mimeType: 'image/jpeg', data: base64Image.split(',')[1] } };
     const textPart = {
-      text: `Analyze this defective electronic panel image and provide a professional, technical "Defect Description" for an RMA claim. 
-             Focus on visible patterns, cracks, discolorations, or structural failures. Keep it concise. Current user notes: ${prompt}`
+      text: `Analyze this defective electronic panel image and provide a professional technical description for an RMA. 
+             Focus on patterns like vertical/horizontal lines, spot defects, or physical cracks.
+             User context: ${prompt}`
     };
 
     const response = await ai.models.generateContent({
@@ -29,7 +17,7 @@ export async function analyzeDefect(base64Image: string, prompt: string) {
 
     return response.text || "No description generated.";
   } catch (error) {
-    console.error("Error calling Gemini API for defect analysis:", error);
+    console.error("Gemini Error:", error);
     throw error;
   }
 }
@@ -37,19 +25,9 @@ export async function analyzeDefect(base64Image: string, prompt: string) {
 export async function detectDefectCategory(base64Image: string) {
   try {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    
-    const imagePart = {
-      inlineData: {
-        mimeType: 'image/jpeg',
-        data: base64Image.split(',')[1],
-      },
-    };
-
+    const imagePart = { inlineData: { mimeType: 'image/jpeg', data: base64Image.split(',')[1] } };
     const textPart = {
-      text: `Look at this electronic display defect. Categorize it into EXACTLY ONE of the following types: 
-             ${PREDEFINED_DEFECTS.join(", ")}. 
-             If it doesn't clearly fit one, choose the closest match or "Abnormal Display". 
-             Return ONLY the category name string.`
+      text: `Identify the primary defect category in this screen. Options: Vertical Line, Horizontal Line, Vertical Bar, Horizontal Bar, Black Dot, Bright Dot, No Display, Abnormal Display. Return ONLY the category name.`
     };
 
     const response = await ai.models.generateContent({
@@ -57,12 +35,8 @@ export async function detectDefectCategory(base64Image: string) {
       contents: { parts: [imagePart, textPart] },
     });
 
-    const category = response.text?.trim() || "";
-    // Validate that the returned category is in our list
-    const matched = PREDEFINED_DEFECTS.find(d => category.toLowerCase().includes(d.toLowerCase()));
-    return matched || "Abnormal Display";
+    return response.text?.trim() || "Abnormal Display";
   } catch (error) {
-    console.error("Error calling Gemini API for defect categorization:", error);
     return "Abnormal Display";
   }
 }
@@ -77,26 +51,20 @@ export interface OCDetails {
 export async function extractOCDetailsFromImage(base64Image: string): Promise<OCDetails> {
   try {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    
-    const imagePart = {
-      inlineData: {
-        mimeType: 'image/jpeg',
-        data: base64Image.split(',')[1],
-      },
-    };
-
+    const imagePart = { inlineData: { mimeType: 'image/jpeg', data: base64Image.split(',')[1] } };
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: {
         parts: [
           imagePart,
           {
-            text: `Look at this panel label image and extract the following 4 specific values:
-            1. The primary OC Serial Number. This is typically a long alphanumeric string near a barcode or QR code (e.g., 'TA5144...', '1500258...', '0MF2L9...').
-            2. The W/C (Week/Cycle), usually a 4-digit code (e.g., '2505').
-            3. The Model P/N (Panel Part No). Examples: 'ST3151A07-2', 'CV500U5-L04', 'V430DJ2-Q01'.
-            4. The Ver. (Version or Revision). Examples: 'Ver.2.9', 'Rev: 02', 'P2'.
-            Return ONLY a valid JSON object with keys: ocSerialNumber, wc, modelPN, ver.`
+            text: `Extract details from this PANEL/OC label. 
+            IMPORTANT: Look for QR codes or BARCODES first. The serial number is usually the string decoded from these or printed immediately above/below them.
+            1. OC Serial Number: typically 10-20 alphanumeric chars (e.g. TA..., 150..., SE...).
+            2. W/C: a 4-digit code (e.g. 2405).
+            3. Model P/N: The specific panel model (e.g. ST3151A07).
+            4. Ver: The version string (e.g. Ver.2.9, Rev:01).
+            Return valid JSON.`
           }
         ]
       },
@@ -105,46 +73,37 @@ export async function extractOCDetailsFromImage(base64Image: string): Promise<OC
         responseSchema: {
           type: Type.OBJECT,
           properties: {
-            ocSerialNumber: { type: Type.STRING, description: "The extracted OC Serial Number" },
-            wc: { type: Type.STRING, description: "The extracted Week/Cycle code" },
-            modelPN: { type: Type.STRING, description: "The extracted Model P/N" },
-            ver: { type: Type.STRING, description: "The extracted Version/Revision code" }
-          },
-          required: ["ocSerialNumber", "wc", "modelPN", "ver"]
+            ocSerialNumber: { type: Type.STRING },
+            wc: { type: Type.STRING },
+            modelPN: { type: Type.STRING },
+            ver: { type: Type.STRING }
+          }
         }
       }
     });
 
-    const result = JSON.parse(response.text || '{}');
-    return result as OCDetails;
+    return JSON.parse(response.text || '{}') as OCDetails;
   } catch (error) {
-    console.error("Error calling Gemini API for OC detail extraction:", error);
-    return { ocSerialNumber: "", wc: "", modelPN: "", ver: "" };
+    console.error("Extraction failed", error);
+    throw error;
   }
 }
 
 export async function extractDetailsFromFactoryLabel(base64Image: string) {
   try {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    
-    const imagePart = {
-      inlineData: {
-        mimeType: 'image/jpeg',
-        data: base64Image.split(',')[1],
-      },
-    };
-
+    const imagePart = { inlineData: { mimeType: 'image/jpeg', data: base64Image.split(',')[1] } };
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: {
         parts: [
           imagePart,
           {
-            text: `Look at this factory label image:
-            1. Find the ODF Number or P/O Number. It is usually a string like 'TS2501-291' or 'IDL2507002'.
-            2. Identify the Screen Size. Look for model codes like 'CX320...', 'LVU430...'. The digits after the prefix (like '32' in 'CX320') indicate the size.
-            3. Find the Expressluck BOM. It is a specific alphanumeric string, often located at the bottom of the label, e.g., '2300132VA1Z01510'.
-            Return the results as a JSON object with 'odf', 'size', and 'bom' keys.`
+            text: `Extract from Factory/Master Label:
+            1. ODF/PO Number (e.g. IDL2507002).
+            2. Screen Size (e.g. 65").
+            3. Expressluck BOM (usually a long number string).
+            Return JSON.`
           }
         ]
       },
@@ -153,19 +112,16 @@ export async function extractDetailsFromFactoryLabel(base64Image: string) {
         responseSchema: {
           type: Type.OBJECT,
           properties: {
-            odf: { type: Type.STRING, description: "The extracted ODF/P/O Number" },
-            size: { type: Type.STRING, description: "The extracted screen size (e.g., '32\"')" },
-            bom: { type: Type.STRING, description: "The extracted Expressluck BOM string" }
-          },
-          required: ["odf", "size", "bom"]
+            odf: { type: Type.STRING },
+            size: { type: Type.STRING },
+            bom: { type: Type.STRING }
+          }
         }
       }
     });
 
-    const result = JSON.parse(response.text || '{}');
-    return result as { odf: string; size: string; bom: string };
+    return JSON.parse(response.text || '{}') as { odf: string; size: string; bom: string };
   } catch (error) {
-    console.error("Error calling Gemini API for factory label extraction:", error);
-    return { odf: "", size: "", bom: "" };
+    throw error;
   }
 }
