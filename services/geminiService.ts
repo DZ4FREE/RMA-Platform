@@ -1,7 +1,27 @@
 import { GoogleGenAI, Type } from "@google/genai";
 
+// Helper to handle potential markdown formatting in AI JSON responses
+function safeJsonParse(text: string | undefined) {
+  if (!text) return {};
+  try {
+    // Remove markdown code blocks if they exist
+    const cleanText = text.replace(/```json/g, '').replace(/```/g, '').trim();
+    return JSON.parse(cleanText);
+  } catch (e) {
+    console.error("Failed to parse AI JSON response:", text);
+    return {};
+  }
+}
+
+const checkApiKey = () => {
+  if (!process.env.API_KEY) {
+    throw new Error("Gemini API Key is missing. Please set API_KEY in your environment variables.");
+  }
+};
+
 export async function analyzeDefect(base64Image: string, prompt: string) {
   try {
+    checkApiKey();
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const imagePart = { inlineData: { mimeType: 'image/jpeg', data: base64Image.split(',')[1] } };
     const textPart = {
@@ -24,6 +44,7 @@ export async function analyzeDefect(base64Image: string, prompt: string) {
 
 export async function detectDefectCategory(base64Image: string) {
   try {
+    checkApiKey();
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const imagePart = { inlineData: { mimeType: 'image/jpeg', data: base64Image.split(',')[1] } };
     const textPart = {
@@ -50,6 +71,7 @@ export interface OCDetails {
 
 export async function extractOCDetailsFromImage(base64Image: string): Promise<OCDetails> {
   try {
+    checkApiKey();
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const imagePart = { inlineData: { mimeType: 'image/jpeg', data: base64Image.split(',')[1] } };
     const response = await ai.models.generateContent({
@@ -82,15 +104,16 @@ export async function extractOCDetailsFromImage(base64Image: string): Promise<OC
       }
     });
 
-    return JSON.parse(response.text || '{}') as OCDetails;
+    return safeJsonParse(response.text) as OCDetails;
   } catch (error) {
-    console.error("Extraction failed", error);
+    console.error("OC Extraction failed", error);
     throw error;
   }
 }
 
 export async function extractDetailsFromFactoryLabel(base64Image: string) {
   try {
+    checkApiKey();
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const imagePart = { inlineData: { mimeType: 'image/jpeg', data: base64Image.split(',')[1] } };
     const response = await ai.models.generateContent({
@@ -120,8 +143,9 @@ export async function extractDetailsFromFactoryLabel(base64Image: string) {
       }
     });
 
-    return JSON.parse(response.text || '{}') as { odf: string; size: string; bom: string };
+    return safeJsonParse(response.text) as { odf: string; size: string; bom: string };
   } catch (error) {
+    console.error("Factory Extraction failed", error);
     throw error;
   }
 }

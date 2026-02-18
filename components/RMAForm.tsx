@@ -74,6 +74,8 @@ const RMAForm: React.FC<RMAFormProps> = ({ onSubmit, onCancel, initialData }) =>
       try {
         const category = await detectDefectCategory(dataUrl);
         setFormData(prev => ({ ...prev, defectDescription: category }));
+      } catch (err: any) {
+        console.error("Defect Detection Error:", err);
       } finally {
         setIsDetectingDefect(false);
         setScanStatus('');
@@ -92,8 +94,9 @@ const RMAForm: React.FC<RMAFormProps> = ({ onSubmit, onCancel, initialData }) =>
           modelPN: details.modelPN || prev.modelPN,
           ver: details.ver || prev.ver
         }));
-      } catch (err) {
-        alert("Smart Scan failed to extract details. Please enter manually.");
+      } catch (err: any) {
+        console.error("OC Scan Error:", err);
+        alert(`OC Scan failed: ${err.message || "Please check your API key and connection."}`);
       } finally {
         setIsScanningOC(false);
         setScanStatus('');
@@ -111,8 +114,9 @@ const RMAForm: React.FC<RMAFormProps> = ({ onSubmit, onCancel, initialData }) =>
           size: details.size || prev.size,
           bom: details.bom || prev.bom
         }));
-      } catch (err) {
-        alert("Failed to auto-scan factory label.");
+      } catch (err: any) {
+        console.error("Factory Scan Error:", err);
+        alert(`Factory Label scan failed: ${err.message || "Please check your API key and connection."}`);
       } finally {
         setIsScanningFactoryLabel(false);
         setScanStatus('');
@@ -138,8 +142,8 @@ const RMAForm: React.FC<RMAFormProps> = ({ onSubmit, onCancel, initialData }) =>
     try {
       const suggestion = await analyzeDefect(images.defectSymptom, formData.defectDescription);
       setFormData(prev => ({ ...prev, remark: (prev.remark ? prev.remark + "\n" : "") + "AI Analysis: " + suggestion }));
-    } catch (err) {
-      alert("AI analysis failed.");
+    } catch (err: any) {
+      alert(`AI analysis failed: ${err.message || "Unknown error"}`);
     } finally {
       setIsAnalyzing(false);
     }
@@ -161,12 +165,15 @@ const RMAForm: React.FC<RMAFormProps> = ({ onSubmit, onCancel, initialData }) =>
   return (
     <form onSubmit={handleSubmit} className="space-y-8 animate-fadeIn pb-12 relative">
       {(isScanningOC || isScanningFactoryLabel || isDetectingDefect) && (
-        <div className="fixed bottom-10 right-10 bg-blue-600 text-white px-6 py-4 rounded-2xl shadow-2xl z-[1000] flex items-center space-x-4 animate-bounce">
+        <div className="fixed bottom-10 right-10 bg-blue-600 text-white px-6 py-4 rounded-2xl shadow-2xl z-[1000] flex items-center space-x-4 animate-bounce border-2 border-white/20">
           <svg className="animate-spin h-5 w-5 text-white" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
           </svg>
-          <span className="font-black text-sm uppercase tracking-widest">{scanStatus}</span>
+          <div className="flex flex-col">
+            <span className="font-black text-[10px] uppercase tracking-tighter opacity-70">AI Processing</span>
+            <span className="font-black text-xs uppercase tracking-widest">{scanStatus}</span>
+          </div>
         </div>
       )}
 
@@ -178,7 +185,7 @@ const RMAForm: React.FC<RMAFormProps> = ({ onSubmit, onCancel, initialData }) =>
             Smart Visual Capture
           </h2>
           <div className="flex space-x-2">
-            <span className="text-[10px] font-bold text-blue-600 bg-blue-100 px-2 py-0.5 rounded">AI AUTO-SCAN ACTIVE</span>
+            <span className="text-[10px] font-bold text-blue-600 bg-blue-100 px-2 py-0.5 rounded border border-blue-200">AI AUTO-SCAN READY</span>
           </div>
         </div>
         
@@ -222,15 +229,15 @@ const RMAForm: React.FC<RMAFormProps> = ({ onSubmit, onCancel, initialData }) =>
           </div>
           <div>
             <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Size</label>
-            <input name="size" value={formData.size} onChange={handleChange} className={`w-full px-3 py-2 border rounded-md outline-none text-sm font-bold ${isScanningFactoryLabel ? 'border-blue-500 bg-blue-50 animate-pulse' : 'border-gray-300'}`} />
+            <input name="size" value={formData.size} onChange={handleChange} className={`w-full px-3 py-2 border rounded-md outline-none text-sm font-bold transition-all ${isScanningFactoryLabel ? 'border-blue-500 bg-blue-50 animate-pulse ring-2 ring-blue-200' : 'border-gray-300'}`} />
           </div>
           <div className="md:col-span-2 lg:col-span-1">
             <label className="block text-xs font-bold text-gray-500 uppercase mb-1">ODF / PO</label>
-            <input name="odf" value={formData.odf} onChange={handleChange} className={`w-full px-3 py-2 border rounded-md outline-none text-sm font-mono ${isScanningFactoryLabel ? 'border-blue-500 bg-blue-50 animate-pulse' : 'border-gray-300'}`} />
+            <input name="odf" value={formData.odf} onChange={handleChange} className={`w-full px-3 py-2 border rounded-md outline-none text-sm font-mono transition-all ${isScanningFactoryLabel ? 'border-blue-500 bg-blue-50 animate-pulse ring-2 ring-blue-200' : 'border-gray-300'}`} />
           </div>
           <div>
             <label className="block text-xs font-bold text-gray-500 uppercase mb-1">BOM</label>
-            <input name="bom" value={formData.bom} onChange={handleChange} className={`w-full px-3 py-2 border rounded-md outline-none text-sm font-mono ${isScanningFactoryLabel ? 'border-blue-500 bg-blue-50 animate-pulse' : 'border-gray-300'}`} />
+            <input name="bom" value={formData.bom} onChange={handleChange} className={`w-full px-3 py-2 border rounded-md outline-none text-sm font-mono transition-all ${isScanningFactoryLabel ? 'border-blue-500 bg-blue-50 animate-pulse ring-2 ring-blue-200' : 'border-gray-300'}`} />
           </div>
 
           <div>
@@ -239,29 +246,34 @@ const RMAForm: React.FC<RMAFormProps> = ({ onSubmit, onCancel, initialData }) =>
           </div>
           <div className="md:col-span-2">
             <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Model P/N</label>
-            <input name="modelPN" value={formData.modelPN} onChange={handleChange} className={`w-full px-3 py-2 border rounded-md outline-none text-sm font-semibold ${isScanningOC ? 'border-blue-500 bg-blue-50 animate-pulse' : 'border-gray-300'}`} />
+            <input name="modelPN" value={formData.modelPN} onChange={handleChange} className={`w-full px-3 py-2 border rounded-md outline-none text-sm font-semibold transition-all ${isScanningOC ? 'border-blue-500 bg-blue-50 animate-pulse ring-2 ring-blue-200' : 'border-gray-300'}`} />
           </div>
           <div>
             <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Ver.</label>
-            <input name="ver" value={formData.ver} onChange={handleChange} className={`w-full px-3 py-2 border rounded-md outline-none text-sm font-bold ${isScanningOC ? 'border-blue-500 bg-blue-50 animate-pulse' : 'border-gray-300'}`} />
+            <input name="ver" value={formData.ver} onChange={handleChange} className={`w-full px-3 py-2 border rounded-md outline-none text-sm font-bold transition-all ${isScanningOC ? 'border-blue-500 bg-blue-50 animate-pulse ring-2 ring-blue-200' : 'border-gray-300'}`} />
           </div>
           <div>
             <label className="block text-xs font-bold text-gray-500 uppercase mb-1">W/C</label>
-            <input name="wc" value={formData.wc} onChange={handleChange} className={`w-full px-3 py-2 border rounded-md outline-none text-sm font-bold ${isScanningOC ? 'border-blue-500 bg-blue-50 animate-pulse' : 'border-gray-300'}`} />
+            <input name="wc" value={formData.wc} onChange={handleChange} className={`w-full px-3 py-2 border rounded-md outline-none text-sm font-bold transition-all ${isScanningOC ? 'border-blue-500 bg-blue-50 animate-pulse ring-2 ring-blue-200' : 'border-gray-300'}`} />
           </div>
           <div className="md:col-span-2">
             <label className="block text-xs font-bold text-gray-500 uppercase mb-1">OC Serial Number</label>
-            <input required name="ocSerialNumber" value={formData.ocSerialNumber} onChange={handleChange} className={`w-full px-3 py-2 border rounded-md outline-none text-sm font-mono ${isScanningOC ? 'border-blue-500 bg-blue-50 animate-pulse' : 'border-gray-300'}`} />
+            <input required name="ocSerialNumber" value={formData.ocSerialNumber} onChange={handleChange} className={`w-full px-3 py-2 border rounded-md outline-none text-sm font-mono transition-all ${isScanningOC ? 'border-blue-500 bg-blue-50 animate-pulse ring-2 ring-blue-200' : 'border-gray-300'}`} />
           </div>
 
           <div className="md:col-span-4">
             <div className="flex justify-between items-center mb-1">
               <label className="block text-xs font-bold text-gray-500 uppercase">Defect Description</label>
-              <button type="button" onClick={handleAISuggestion} disabled={isAnalyzing || !images.defectSymptom} className="text-[10px] bg-blue-600 text-white px-3 py-1 rounded shadow-sm hover:bg-blue-700 disabled:opacity-50 transition-colors uppercase font-bold">
-                {isAnalyzing ? "Analyzing..." : "✨ Technical AI Analysis"}
+              <button type="button" onClick={handleAISuggestion} disabled={isAnalyzing || !images.defectSymptom} className="text-[10px] bg-blue-600 text-white px-3 py-1 rounded shadow-sm hover:bg-blue-700 disabled:opacity-50 transition-colors uppercase font-bold flex items-center">
+                {isAnalyzing ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-2 h-3 w-3 text-white" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    Analyzing...
+                  </>
+                ) : "✨ Technical AI Analysis"}
               </button>
             </div>
-            <select required name="defectDescription" value={formData.defectDescription} onChange={handleChange} className={`w-full px-3 py-2 border rounded-md outline-none text-sm font-semibold ${isDetectingDefect ? 'border-blue-500 bg-blue-50' : 'border-gray-300'}`}>
+            <select required name="defectDescription" value={formData.defectDescription} onChange={handleChange} className={`w-full px-3 py-2 border rounded-md outline-none text-sm font-semibold transition-all ${isDetectingDefect ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200' : 'border-gray-300'}`}>
               <option value="">Select Category</option>
               {DEFECT_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
               <option value="Other">Other</option>
@@ -270,13 +282,13 @@ const RMAForm: React.FC<RMAFormProps> = ({ onSubmit, onCancel, initialData }) =>
 
           <div className="md:col-span-4">
             <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Remarks & Findings</label>
-            <textarea name="remark" rows={4} value={formData.remark} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-md outline-none text-sm bg-slate-50" />
+            <textarea name="remark" rows={4} value={formData.remark} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-md outline-none text-sm bg-slate-50 focus:bg-white transition-colors" />
           </div>
         </div>
 
         <div className="bg-slate-50 px-6 py-4 flex justify-end space-x-4 border-t border-gray-200">
           <button type="button" onClick={onCancel} className="px-6 py-2 text-sm text-gray-600 font-bold hover:bg-gray-200 rounded transition-colors uppercase">Cancel</button>
-          <button type="submit" className="px-10 py-2 bg-blue-700 text-white font-black rounded shadow-lg hover:bg-blue-800 transition-all uppercase tracking-widest text-sm">Save Entry</button>
+          <button type="submit" className="px-10 py-2 bg-blue-700 text-white font-black rounded shadow-lg hover:bg-blue-800 transition-all uppercase tracking-widest text-sm active:scale-[0.98]">Save Entry</button>
         </div>
       </div>
     </form>
