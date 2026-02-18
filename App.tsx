@@ -14,6 +14,7 @@ const App: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [hasApiKey, setHasApiKey] = useState<boolean>(false);
+  const [keySource, setKeySource] = useState<'none' | 'netlify' | 'aistudio'>('none');
 
   useEffect(() => {
     checkApiKey();
@@ -61,7 +62,7 @@ const App: React.FC = () => {
     const envKey = process.env.API_KEY;
     if (envKey && envKey.length > 5) {
       setHasApiKey(true);
-      console.log("Gemini Engine: Initialized via Environment Variable");
+      setKeySource('netlify');
       return;
     }
 
@@ -69,19 +70,26 @@ const App: React.FC = () => {
     if (window.aistudio) {
       try {
         const selected = await window.aistudio.hasSelectedApiKey();
-        setHasApiKey(selected);
+        if (selected) {
+          setHasApiKey(true);
+          setKeySource('aistudio');
+          return;
+        }
       } catch (e) {
         setHasApiKey(false);
       }
-    } else {
-      setHasApiKey(false);
     }
+    
+    setHasApiKey(false);
+    setKeySource('none');
   };
 
   const handleSelectKey = async () => {
     if (window.aistudio) {
       await window.aistudio.openSelectKey();
+      // Assume success as per platform requirements
       setHasApiKey(true);
+      setKeySource('aistudio');
     }
   };
 
@@ -249,15 +257,27 @@ const App: React.FC = () => {
           </nav>
 
           {!hasApiKey && (
-            <div className="mt-4 p-4 bg-amber-50 rounded-xl border border-amber-200 animate-fadeIn">
-              <p className="text-[10px] font-black text-amber-600 uppercase mb-2">Gemini Engine Locked</p>
-              <p className="text-[11px] text-amber-800 leading-tight mb-4">No API Key detected. AI scanning and analysis features are currently disabled.</p>
-              <button 
-                onClick={handleSelectKey}
-                className="w-full py-2.5 bg-blue-600 text-white text-[10px] font-black rounded-lg hover:bg-blue-700 uppercase tracking-widest transition-all shadow-md active:scale-95"
-              >
-                Activate AI Engine
-              </button>
+            <div className="mt-4 p-4 bg-rose-50 rounded-xl border border-rose-200 animate-fadeIn">
+              <p className="text-[10px] font-black text-rose-600 uppercase mb-2">Netlify Configuration Required</p>
+              <div className="space-y-3 mb-4 text-[10px] text-rose-800 leading-tight">
+                <p>1. Go to <b>Netlify Settings</b></p>
+                <p>2. Add <b>API_KEY</b> as key</p>
+                <p>3. <b>IMPORTANT:</b> Trigger a "Clear Cache & Deploy" on the Deploys tab.</p>
+              </div>
+              <div className="flex flex-col space-y-2">
+                <button 
+                  onClick={checkApiKey}
+                  className="w-full py-2.5 bg-rose-600 text-white text-[10px] font-black rounded-lg hover:bg-rose-700 uppercase tracking-widest transition-all shadow-md active:scale-95"
+                >
+                  Refresh Connection
+                </button>
+                <button 
+                  onClick={handleSelectKey}
+                  className="w-full py-2.5 bg-blue-600 text-white text-[10px] font-black rounded-lg hover:bg-blue-700 uppercase tracking-widest transition-all shadow-md active:scale-95"
+                >
+                  Manual Bridge Connect
+                </button>
+              </div>
             </div>
           )}
           
@@ -266,7 +286,9 @@ const App: React.FC = () => {
               <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse ring-4 ring-emerald-100"></div>
               <div className="flex flex-col">
                 <span className="text-[10px] font-black text-emerald-700 uppercase tracking-tight">AI Status: Active</span>
-                <span className="text-[8px] text-emerald-600 font-bold uppercase opacity-70">Gemini 3 Flash Ready</span>
+                <span className="text-[8px] text-emerald-600 font-bold uppercase opacity-70">
+                  via {keySource === 'netlify' ? 'Netlify Env' : 'AI Studio Bridge'}
+                </span>
               </div>
             </div>
           )}
@@ -486,16 +508,6 @@ const App: React.FC = () => {
                           </td>
                         </tr>
                       ))}
-                      {filteredRequests.length === 0 && (
-                        <tr>
-                          <td colSpan={7} className="px-6 py-24 text-center">
-                             <div className="flex flex-col items-center opacity-40">
-                                <svg className="w-16 h-16 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                                <span className="text-sm font-black uppercase tracking-widest">No matching records found</span>
-                             </div>
-                          </td>
-                        </tr>
-                      )}
                     </tbody>
                   </table>
                 </div>
